@@ -101,7 +101,12 @@ Swordfish 支持事务, 默认为 snapshot 隔离级别。它同时提供 Write-
 
 ### 流计算引擎
 
-> :exclamation::exclamation::exclamation::exclamation:<待补充>:exclamation::exclamation::exclamation::exclamation::exclamation:
+
+使用 DolphinDB 处理历史数据时，可以通过 SQL 语句配合内置计算函数进行查询和计算（全量或增量）。但在实时数据流计算场景下，计算要求高效和即时，全量查询和计算则无法满足该场景的需求。因此， DolphinDB 精心研发了适合流计算场景的引擎，系统内部采用了增量计算，优化了实时计算的性能。
+
+实际应用中，流数据引擎的计算结果可以输出到共享内存表、流数据表、消息中间件、数据库、API 等终端，以做进一步处理。计算复杂表达式时，亦可将多个流数据引擎通过级联的方式合并成一个复杂的数据流拓扑。
+
+Swordfish 完全支持 DolphinDB 提供的应对不同计算场景的多种引擎，详情参考：[流计算引擎](https://www.dolphindb.cn/cn/help/FunctionsandCommands/SeriesOfFunctions/streamingEngine.html?highlight=%E6%B5%81%E6%95%B0%E6%8D%AE%E5%BC%95%E6%93%8E#id2)。
 
 ### License 有效性检查
 
