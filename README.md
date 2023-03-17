@@ -171,7 +171,7 @@ colDesc.emplace_back("e", DT_STRING, 0);
 // 以 "a" 作为主键创建主键索引
 std::vector<std::string> pk{"a"};
 
-// 以 "b,c,d" 作为作为复合键创建 unique 的二级索引
+// 以 "b,c,d" 作为复合键创建 unique 的二级索引
 // 以 "d" 作为键创建 non-unique 的二级索引
 std::vector<std::pair<bool, std::vector<std::string>>> secondaryKeys{
     {true, {"b", "c", "d"}},
@@ -192,16 +192,17 @@ conn.dropTable("table");
 conn.insert(...);
 
 // 查询
-conn.query("table1"，{}， conn.makeFilters("a>5,a<10"));
+conn.query("table1", {}, conn.makeFilters("a>5,a<10"));
 conn.execute("select * from table1 where a>5,a<10");
 conn.execute("select * from table1 where a>5,a<10 order by a");
 
 // 更新
-conn.update("table1"，conn.makeColumnUpdateDefs("b=b+1")，conn.makeFilters("a=5"));
+conn.update("table1", conn.makeColumnUpdateDefs("b=b+1"), conn.makeFilters("a=5"));
 conn.execute("update table1 set b=b+1 where a=5");
 
-/ 删除
-conn.remove("table1"， conn.makeFilters("a=5"));1415conn.execute("delete from table1 where a=5");
+// 删除
+conn.remove("table1", conn.makeFilters("a=5"));
+conn.execute("delete from table1 where a=5");
 ```
 
 ### 事务处理
@@ -252,7 +253,7 @@ ConstantSP obj = conn.execute(R"(
 - *test_db.wal*: Write-Ahead-Log 文件（如果开启了 WAL）
 - *teset_db.ckp*: checkpoint 文件（如果开启了 checkpoint）
 
-除此之外，如果数据库运行过程中由于某些原因崩溃了，这个目录下面可能会出现一些临时文件：
+除此之外，如果数据库运行过程中由于某些原因崩溃，这个目录下面可能出现一些临时文件：
 
 - *test_db.wal._in_checkpoint_*
 - *test_db.wal._in_recovery_*
