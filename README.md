@@ -19,7 +19,7 @@ Swordfish 是 **DolphinDB, Inc.** 开发的一款嵌入式版本数据库产品�
 - DolphinDB 脚本语言
 - DolphinDB 批计算引擎和流计算引擎
 
-Swordfish 仅面向付费的商业用户，不提供社区版。商业用户如需测试或试用，请联系 [sales@dolphindb.com](sales@dolphindb.com) 或已知的 DolphinDB 销售人员。
+Swordfish 仅面向付费的商业用户，不提供社区版。商业用户如需测试或试用，请电邮联系 sales@dolphindb.com 或已知的 DolphinDB 销售人员。
 
 通过阅读本手册，能够达成以下目标：
 
