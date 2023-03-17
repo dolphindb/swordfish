@@ -1,0 +1,34 @@
+// 算子
+def sum_diff(x, y){
+    return (x-y)/(x+y)
+}
+
+@state
+def factor1(price) {
+    a = ema(price, 20)
+    b = ema(price, 40)
+    c = 1000 * sum_diff(a, b)
+    return  ema(c, 10) - ema(c, 20)
+}
+
+// 创建引擎
+def createEngine(outputTableName, rseName="reactiveDemo") {
+    inputSchema = table(1:0, `time`sym`price, [TIMESTAMP,STRING,DOUBLE])
+    return createReactiveStateEngine(name=rseName, metrics=[<time>,<factor1(price)>], dummyTable=inputSchema, outputTable=objByName(outputTableName), keyColumn="sym")
+}
+
+// 向引擎输入数据
+def produceData(n, rseName="reactiveDemo") {
+    rse = getStreamEngine(rseName)
+    rse.tableInsert(table((now() + (1..n)) as time, take("000001.SH", n) as sym, rand(10.0, n) as price))
+}
+
+// 清理环境 （释放流数据引擎）
+def cleanEnvironment(rseName="reactiveDemo") {
+    dropStreamEngine(rseName)
+}
+
+// output_oltp = table(100:0, `sym`time`factor1,  [STRING, TIMESTAMP, DOUBLE])
+// createEngine(`output_oltp)
+// produceData(100)
+// cleanEnvironment()

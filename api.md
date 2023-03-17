@@ -709,9 +709,10 @@ writer.append(1, false, 1.0, "a")
 
 
 
-## 头文件
+## 参考
 
-以上类和结构体的说明来源于头文件：[embeddedOLTP.h](scripts/EmbeddedOLTP.h)。
+- 包含上述类和结构体的头文件：[EmbeddedOLTP.h](scripts/EmbeddedOLTP.h)
+- [DolphinDB 用户手册](https://www.dolphindb.cn/cn/help/index.html)
 
 
 
