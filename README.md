@@ -189,7 +189,19 @@ conn.dropTable("table");
 
 ```
 // 插入
+conn.insert(...);
 
+// 查询
+conn.query("table1"，{}， conn.makeFilters("a>5,a<10"));
+conn.execute("select * from table1 where a>5,a<10");
+conn.execute("select * from table1 where a>5,a<10 order by a");
+
+// 更新
+conn.update("table1"，conn.makeColumnUpdateDefs("b=b+1")，conn.makeFilters("a=5"));
+conn.execute("update table1 set b=b+1 where a=5");
+
+/ 删除
+conn.remove("table1"， conn.makeFilters("a=5"));1415conn.execute("delete from table1 where a=5");
 ```
 
 ### 事务处理
