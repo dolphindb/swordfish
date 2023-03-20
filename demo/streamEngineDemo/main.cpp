@@ -16,7 +16,7 @@ int main() {
     auto session = conn.getCurrentSession();
     
     // run .dos on local path
-    bool success = session->run("../src/streamEngineDemo/streamEngineTest.dos");
+    bool success = session->run("../../demo/streamEngineDemo/streamEngineTest.dos");
     if(!success) {
         throw RuntimeException(session->getLastErrorMessage());
     }

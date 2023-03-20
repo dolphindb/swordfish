@@ -101,7 +101,6 @@ Swordfish 支持事务, 默认为 snapshot 隔离级别。它同时提供 Write-
 
 ### 流计算引擎
 
-
 使用 DolphinDB 处理历史数据时，可以通过 SQL 语句配合内置计算函数进行查询和计算（全量或增量）。但在实时数据流计算场景下，计算要求高效和即时，全量查询和计算则无法满足该场景的需求。因此， DolphinDB 精心研发了适合流计算场景的引擎，系统内部采用了增量计算，优化了实时计算的性能。
 
 实际应用中，流数据引擎的计算结果可以输出到共享内存表、流数据表、消息中间件、数据库、API 等终端，以做进一步处理。计算复杂表达式时，亦可将多个流数据引擎通过级联的方式合并成一个复杂的数据流拓扑。
@@ -203,6 +202,7 @@ conn.execute("update table1 set b=b+1 where a=5");
 // 删除
 conn.remove("table1", conn.makeFilters("a=5"));
 conn.execute("delete from table1 where a=5");
+
 ```
 
 ### 事务处理
@@ -253,7 +253,7 @@ ConstantSP obj = conn.execute(R"(
 - *test_db.wal*: Write-Ahead-Log 文件（如果开启了 WAL）
 - *teset_db.ckp*: checkpoint 文件（如果开启了 checkpoint）
 
-除此之外，如果数据库运行过程中由于某些原因崩溃，这个目录下面可能出现一些临时文件：
+除此之外，如果数据库运行过程中由于某些原因崩溃了，这个目录下面可能会出现一些临时文件：
 
 - *test_db.wal._in_checkpoint_*
 - *test_db.wal._in_recovery_*
