@@ -1,78 +1,73 @@
-# API 参考 
+# API 参考
 
-
-
-
-  - [类：oltp::Connection](#类oltpconnection)
-    - [公开成员函数](#公开成员函数)
-    - [详细说明](#详细说明)
-    - [成员函数](#成员函数)
-      - [void oltp::Connection::beginTransaction ()](#void-oltpconnectionbegintransaction-)
-      - [void oltp::Connection::createTable ()](#void-oltpconnectioncreatetable-)
-      - [void oltp::Connection::dropTable ()](#void-oltpconnectiondroptable-)
-      - [ConstantSP oltp::Connection::execute ()](#constantsp-oltpconnectionexecute-)
-      - [TableDescriptionSP oltp::Connection::getTableInfo ()](#tabledescriptionsp-oltpconnectiongettableinfo-)
-      - [size\_t oltp::Connection::insert ()](#size_t-oltpconnectioninsert-)
-      - [size\_t oltp::Connection::insert ()](#size_t-oltpconnectioninsert--1)
-      - [bool oltp::Connection::isInActiveTransactionContext ()](#bool-oltpconnectionisinactivetransactioncontext-)
-      - [vector\< string \> oltp::Connection::listAllTable ()](#vector-string--oltpconnectionlistalltable-)
-      - [vector\< ColumnDefSP \> oltp::Connection::makeColumnUpdateDefs ()](#vector-columndefsp--oltpconnectionmakecolumnupdatedefs-)
-      - [vector\< ObjectSP \> oltp::Connection::makeFilters ()](#vector-objectsp--oltpconnectionmakefilters-)
-      - [TableSP oltp::Connection::query ()](#tablesp-oltpconnectionquery-)
-      - [size\_t oltp::Connection::query ()](#size_t-oltpconnectionquery-)
-      - [size\_t oltp::Connection::remove ()](#size_t-oltpconnectionremove-)
-      - [void oltp::Connection::requestCheckpoint ()](#void-oltpconnectionrequestcheckpoint-)
-      - [template void oltp::Connection::transaction ()](#template-void-oltpconnectiontransaction-)
-      - [size\_t oltp::Connection::update ()](#size_t-oltpconnectionupdate-)
-  - [类：oltp::DB](#类oltpdb)
-    - [公有成员函数](#公有成员函数)
-    - [友元类](#友元类)
-    - [详细说明](#详细说明-1)
-    - [构造函数和析构函数](#构造函数和析构函数)
-      - [oltp::DB::DB ()\[explicit\]](#oltpdbdb-explicit)
-  - [类：oltp::DBOption](#类oltpdboption)
-    - [公共属性](#公共属性)
-    - [成员](#成员)
-  - [类：DolphinDBLib](#类dolphindblib)
-    - [静态公有成员函数](#静态公有成员函数)
-      - [成员函数](#成员函数-1)
-  - [类：oltp::NeedRetryException](#类oltpneedretryexception)
-    - [公有成员函数](#公有成员函数-1)
-    - [详细说明](#详细说明-2)
-  - [类：oltp::NotRetryException](#类oltpnotretryexception)
-    - [公有成员函数](#公有成员函数-2)
-    - [详细说明](#详细说明-3)
-  - [类：oltp::RawTableBufferGenerator](#类oltprawtablebuffergenerator)
-    - [公有成员函数](#公有成员函数-3)
-  - [类：oltp::RawTableBufferWriter](#类oltprawtablebufferwriter)
-    - [公有成员函数](#公有成员函数-4)
-      - [成员函数](#成员函数-2)
-  - [类：oltp::RawTupleBufferReader](#类oltprawtuplebufferreader)
-    - [公有成员函数](#公有成员函数-5)
-  - [类：oltp::StringView](#类oltpstringview)
-    - [公有成员函数](#公有成员函数-6)
-  - [结构体：oltp::RawTableBuffer](#结构体oltprawtablebuffer)
-    - [公共属性](#公共属性-1)
-    - [详细说明](#详细说明-4)
-    - [成员](#成员-1)
-  - [结构体：oltp::RawTupleBuffer](#结构体oltprawtuplebuffer)
-    - [公共属性](#公共属性-2)
-    - [详细说明](#详细说明-5)
-  - [结构体：oltp::IndexDescription](#结构体oltpindexdescription)
-    - [公共属性](#公共属性-3)
-    - [成员](#成员-2)
-  - [结构体：oltp::TableDescription](#结构体oltptabledescription)
-    - [公共属性](#公共属性-4)
-    - [成员](#成员-3)
+- [类：oltp::Connection](#类oltpconnection)
+  - [公开成员函数](#公开成员函数)
+  - [详细说明](#详细说明)
+  - [成员函数](#成员函数)
+    - [void oltp::Connection::beginTransaction ()](#void-oltpconnectionbegintransaction-)
+    - [void oltp::Connection::createTable ()](#void-oltpconnectioncreatetable-)
+    - [void oltp::Connection::dropTable ()](#void-oltpconnectiondroptable-)
+    - [ConstantSP oltp::Connection::execute ()](#constantsp-oltpconnectionexecute-)
+    - [TableDescriptionSP oltp::Connection::getTableInfo ()](#tabledescriptionsp-oltpconnectiongettableinfo-)
+    - [size\_t oltp::Connection::insert ()](#size_t-oltpconnectioninsert-)
+    - [size\_t oltp::Connection::insert ()](#size_t-oltpconnectioninsert--1)
+    - [bool oltp::Connection::isInActiveTransactionContext ()](#bool-oltpconnectionisinactivetransactioncontext-)
+    - [vector\< string \> oltp::Connection::listAllTable ()](#vector-string--oltpconnectionlistalltable-)
+    - [vector\< ColumnDefSP \> oltp::Connection::makeColumnUpdateDefs ()](#vector-columndefsp--oltpconnectionmakecolumnupdatedefs-)
+    - [vector\< ObjectSP \> oltp::Connection::makeFilters ()](#vector-objectsp--oltpconnectionmakefilters-)
+    - [TableSP oltp::Connection::query ()](#tablesp-oltpconnectionquery-)
+    - [size\_t oltp::Connection::query ()](#size_t-oltpconnectionquery-)
+    - [size\_t oltp::Connection::remove ()](#size_t-oltpconnectionremove-)
+    - [void oltp::Connection::requestCheckpoint ()](#void-oltpconnectionrequestcheckpoint-)
+    - [template void oltp::Connection::transaction ()](#template-void-oltpconnectiontransaction-)
+    - [size\_t oltp::Connection::update ()](#size_t-oltpconnectionupdate-)
+- [类：oltp::DB](#类oltpdb)
+  - [公有成员函数](#公有成员函数)
+  - [友元类](#友元类)
+  - [详细说明](#详细说明-1)
+  - [构造函数和析构函数](#构造函数和析构函数)
+    - [oltp::DB::DB ()\[explicit\]](#oltpdbdb-explicit)
+- [类：oltp::DBOption](#类oltpdboption)
+  - [公共属性](#公共属性)
+  - [成员](#成员)
+- [类：DolphinDBLib](#类dolphindblib)
+  - [静态公有成员函数](#静态公有成员函数)
+    - [成员函数](#成员函数-1)
+- [类：oltp::NeedRetryException](#类oltpneedretryexception)
+  - [公有成员函数](#公有成员函数-1)
+  - [详细说明](#详细说明-2)
+- [类：oltp::NotRetryException](#类oltpnotretryexception)
+  - [公有成员函数](#公有成员函数-2)
+  - [详细说明](#详细说明-3)
+- [类：oltp::RawTableBufferGenerator](#类oltprawtablebuffergenerator)
+  - [公有成员函数](#公有成员函数-3)
+- [类：oltp::RawTableBufferWriter](#类oltprawtablebufferwriter)
+  - [公有成员函数](#公有成员函数-4)
+    - [成员函数](#成员函数-2)
+- [类：oltp::RawTupleBufferReader](#类oltprawtuplebufferreader)
+  - [公有成员函数](#公有成员函数-5)
+- [类：oltp::StringView](#类oltpstringview)
+  - [公有成员函数](#公有成员函数-6)
+- [结构体：oltp::RawTableBuffer](#结构体oltprawtablebuffer)
+  - [公共属性](#公共属性-1)
+  - [详细说明](#详细说明-4)
+  - [成员](#成员-1)
+- [结构体：oltp::RawTupleBuffer](#结构体oltprawtuplebuffer)
+  - [公共属性](#公共属性-2)
+  - [详细说明](#详细说明-5)
+- [结构体：oltp::IndexDescription](#结构体oltpindexdescription)
+  - [公共属性](#公共属性-3)
+  - [成员](#成员-2)
+- [结构体：oltp::TableDescription](#结构体oltptabledescription)
+  - [公共属性](#公共属性-4)
+  - [成员](#成员-3)
 - [头文件](#头文件)
-
-
 
 # 类 (class) 说明
 
 ## 类：oltp::Connection
 
-\#include <EmbeddedOLTP.h>
+\#include <Swordfish.h>
 
 ### 公开成员函数
 
@@ -110,8 +105,7 @@
 
 **注意**
 
-> 确保连接处于活动状态时，**数据库**对象是有效的。 
-
+> 确保连接处于活动状态时，**数据库**对象是有效的。
 
 ### 成员函数
 
@@ -123,20 +117,17 @@
 
 > 不可在事务中执行任何 DDL 操作（即创建/删除表）。
 
-如果已经在一个活跃的事务中，请勿开始一个新的事务，否则将抛出 RuntimeException。 
+如果已经在一个活跃的事务中，请勿开始一个新的事务，否则将抛出 RuntimeException。
 
 #### void oltp::Connection::createTable ()
 
-
 在当前数据库中创建一个表。
 
-用法： 
+用法：
 
 ```cpp
 void oltp::Connection::createTable (const string & *tableName*, const vector< ColumnDesc > & *colDesc*, const vector< string > &  *primaryKey*, const vector< pair< bool, vector< string > > > & *secondaryKeys*)
 ```
-
-
 
 **参数**
 
@@ -151,36 +142,32 @@ void oltp::Connection::createTable (const string & *tableName*, const vector< Co
 
 二级索引键值对 `<bool, vector<string>>` 的描述：
 
-- 第一，是否是唯一索引。 
-- 第二，用作索引键的列。 
+- 第一，是否是唯一索引。
+- 第二，用作索引键的列。
 
 #### void oltp::Connection::dropTable ()
 
 删除当前数据库中的一个表。
 
-用法： 
+用法：
 
 ```cpp
 void oltp::Connection::dropTable (const string & *tableName*)
 ```
 
-
 **参数**
 
 *tableName*: 要删除的表名
-
 
 #### ConstantSP oltp::Connection::execute ()
 
 执行一个SQL或DolphinDB脚本。
 
-用法： 
+用法：
 
 ```cpp
 ConstantSP oltp::Connection::execute (const string & *script*)
 ```
-
-
 
 例子:
 
@@ -194,27 +181,23 @@ execute("select * from table order by a"), execute("a = 1; b = 2; a + b")。
 
 #### TableDescriptionSP oltp::Connection::getTableInfo ()
 
-获取一个特定表的信息，若找不到相关信息，则返回NULL-SP。 
+获取一个特定表的信息，若找不到相关信息，则返回NULL-SP。
 
-用法： 
+用法：
 
 ```cpp
 TableDescriptionSP oltp::Connection::getTableInfo (const string & *tableName*)
 ```
 
-
-
 #### size_t oltp::Connection::insert ()
 
 用于低级别插入的API。调用时**必须**确保传入数据与表的 schema 相匹配。
 
-用法： 
+用法：
 
 ```cpp
 size_t oltp::Connection::insert (const string & *tableName*, const RawTableBuffer & *data*)
 ```
-
-
 
 **警告**
 
@@ -229,14 +212,11 @@ size_t oltp::Connection::insert (const string & *tableName*, const RawTableBuffe
 
 向表中插入数据。
 
-用法： 
+用法：
 
 ```cpp
 size_t oltp::Connection::insert (const string & *tableName*, const TableSP & *data*)
 ```
-
-
-
 
 **参数**
 
@@ -252,7 +232,6 @@ size_t oltp::Connection::insert (const string & *tableName*, const TableSP & *da
 - **NeedRetryException**: 由于并发事务而导致的读写冲突，不是错误。
 - **NotRetryException**: 是一种无法处理的错误。异常原因包括写入的表不存在、写入的数据和表的 schema 不匹配等。
 
-
 #### bool oltp::Connection::isInActiveTransactionContext ()
 
 检查是否在一个活跃的事务中。
@@ -263,9 +242,9 @@ size_t oltp::Connection::insert (const string & *tableName*, const TableSP & *da
 
 #### vector< ColumnDefSP > oltp::Connection::makeColumnUpdateDefs ()
 
-生成符合 SQL 语法中的 update 语句，例如"a = 1"，"a = a + 1, b = b - 1"。 
+生成符合 SQL 语法中的 update 语句，例如"a = 1"，"a = a + 1, b = b - 1"。
 
-用法： 
+用法：
 
 ```cpp
 vector< ColumnDefSP > oltp::Connection::makeColumnUpdateDefs (const string & *text*)
@@ -275,13 +254,11 @@ vector< ColumnDefSP > oltp::Connection::makeColumnUpdateDefs (const string & *te
 
 生成符合 SQL where 子句中的过滤条件，例如，"a = 1"，"a > 3, b = 2"。
 
-用法： 
+用法：
 
 ```cpp
 vector< ObjectSP > oltp::Connection::makeFilters (const string & *text*)
 ```
-
-
 
 **参数**
 
@@ -289,24 +266,23 @@ vector< ObjectSP > oltp::Connection::makeFilters (const string & *text*)
 
 **注意**
 
-> 请勿使用 "a>3和b=2"，而应使用 "a>3，b=2"。 
+> 请勿使用 "a>3和b=2"，而应使用 "a>3，b=2"。
 
 #### TableSP oltp::Connection::query ()
 
 从表中查询数据。
 
-用法： 
+用法：
 
 ```cpp
 TableSP oltp::Connection::query (const string & *tableName*, const vector< string > & *columnNames*, const vector< ObjectSP > & *filters*)
 ```
 
-
 **参数**
 
-- *tableName*: 要查询的表名             
-- *columnNames*: 要查询的列（若为空，则查询所有列）。                         
-- *filters*: 在  SQL 中的 Where 子句中，若为空则查询全部数据。使用 makeFilters生成过滤条件，例如，makeFilters("a = 1") , makeFilters("a  = 1, b > 2") 。 
+- *tableName*: 要查询的表名
+- *columnNames*: 要查询的列（若为空，则查询所有列）。
+- *filters*: 在  SQL 中的 Where 子句中，若为空则查询全部数据。使用 makeFilters生成过滤条件，例如，makeFilters("a = 1") , makeFilters("a  = 1, b > 2") 。
 
 **返回值**
 
@@ -316,7 +292,6 @@ TableSP oltp::Connection::query (const string & *tableName*, const vector< strin
 
 - **NeedRetryException**: 由于并发事务而导致的读写冲突，不是错误。
 - **NotRetryException**: 是一种无法处理的错误。异常原因包括写入的表不存在、写入的数据和表的 schema 不匹配等。
-  
 
 **注意**
 
@@ -324,10 +299,9 @@ TableSP oltp::Connection::query (const string & *tableName*, const vector< strin
 
 #### size_t oltp::Connection::query ()
 
-
 这是一个用于低级别查询的API。调用时需提前分配内存（见 **RawTableBuffer**），并将结果写入该内存区域。**RawTableBuffer::rows** 表示要返回的最大行数。调用时必须确保 **RawTableBuffer** 中的元组足够大，能够存储查询结果的一行。
 
-用法： 
+用法：
 
 ```cpp
 size_t oltp::Connection::query (const string & *tableName*, const vector< string > & *columnNames*, const vector< ObjectSP > & *filters*, const RawTableBuffer & *result*)
@@ -340,7 +314,7 @@ size_t oltp::Connection::query (const string & *tableName*, const vector< string
 **参数**
 
 - *columnNames*: 要查询的列。若为空，则查询全部列。
-- *result*: 用来存储查询结果的缓冲区。    
+- *result*: 用来存储查询结果的缓冲区。
 
 **返回值**
 
@@ -359,7 +333,7 @@ size_t oltp::Connection::query (const string & *tableName*, const vector< string
 
 从表中删除数据。
 
-用法： 
+用法：
 
 ```cpp
 size_t oltp::Connection::remove (const string & *tableName*, const vector< ObjectSP > & *filters*)
@@ -367,8 +341,8 @@ size_t oltp::Connection::remove (const string & *tableName*, const vector< Objec
 
 **参数**
 
-- *tableName*: 要删除的表名                                                 
-- *filters*: 在  SQL 中的 Where子句中，若为空则查询全部数据。使用 makeFilters 来生成过滤条件。 
+- *tableName*: 要删除的表名
+- *filters*: 在  SQL 中的 Where子句中，若为空则查询全部数据。使用 makeFilters 来生成过滤条件。
 
 **返回值**
 
@@ -383,7 +357,7 @@ size_t oltp::Connection::remove (const string & *tableName*, const vector< Objec
 
 要求做检查点。
 
-用法： 
+用法：
 
 ```cpp
 void oltp::Connection::requestCheckpoint (bool *force*, bool *wait*)
@@ -391,10 +365,10 @@ void oltp::Connection::requestCheckpoint (bool *force*, bool *wait*)
 
 **参数**
 
-- *force*: 强制检查点，即使没有做任何改变。 
-- *wait*: 是否等待检查点完成 
+- *force*: 强制检查点，即使没有做任何改变。
+- *wait*: 是否等待检查点完成
 
-#### template<typename Code > void oltp::Connection::transaction ()
+#### template`<typename Code >` void oltp::Connection::transaction ()
 
 用于在同一事务中执行多个DML操作的方法。
 
@@ -403,6 +377,7 @@ void oltp::Connection::requestCheckpoint (bool *force*, bool *wait*)
 ```cpp
 template<typename Code > void oltp::Connection::transaction (Code  code)
 ```
+
 例子：
 
 ```cpp
@@ -428,9 +403,9 @@ size_t oltp::Connection::update (const string & *tableName*, const vector< Colum
 
 **参数**
 
-- *tableName*: 要更新的表名                                              
+- *tableName*: 要更新的表名
 - *updateExpr*: 如何更新该表。使用  makeColumnUpdateDefs 来生成 update 表达式，例如 makeColumnUpdateDefs("a  = a +1") 。
-- *filters*: 在  SQL 中的 Where子句中，若为空则查询全部数据。使用 makeFilters 来生成过滤条件。 
+- *filters*: 在  SQL 中的 Where子句中，若为空则查询全部数据。使用 makeFilters 来生成过滤条件。
 
 **返回值**
 
@@ -441,9 +416,9 @@ size_t oltp::Connection::update (const string & *tableName*, const vector< Colum
 - **NeedRetryException**: 由于并发事务而导致的读写冲突，不是错误。
 - **NotRetryException**: 是一种无法处理的错误。异常原因包括写入的表不存在、写入的数据和表的 schema 不匹配等。
 
-## 类：oltp::DB 
+## 类：oltp::DB
 
-\#include <EmbeddedOLTP.h>
+\#include <Swordfish.h>
 
 ### 公有成员函数
 
@@ -490,7 +465,7 @@ oltp::DB::DB (const string & *path*, const DBOption & *option*)[explicit]
 
 ### 成员
 
-- `size_t oltp::DBOption::checkpointInterval = 60`: 强制每隔#秒做一次检查点。 
+- `size_t oltp::DBOption::checkpointInterval = 60`: 强制每隔#秒做一次检查点。
 - `size_t oltp::DBOption::checkpointThreshold = 100`: 当预写日志的大小超过# MiB时，强制做检查点。
 - `bool oltp::DBOption::enableCheckpoint = true`: 若显示ture，将根据checkpointThreshold 和 checkpointInterval自动进行检查。
 - `bool oltp::DBOption::enableWAL = true`: 若显示 false，所有的数据都会存储在内存中，一旦数据库关闭这些数据就会丢失。若显示 true，便开启预写日志以保证数据库的持久性。
@@ -503,12 +478,11 @@ oltp::DB::DB (const string & *path*, const DBOption & *option*)[explicit]
 
 **注意**
 
-> 若无必要，请勿在同一进程中同时打开数据库（只读模式），因为每次打开数据库，所有的数据都会被加载到内存中。 
+> 若无必要，请勿在同一进程中同时打开数据库（只读模式），因为每次打开数据库，所有的数据都会被加载到内存中。
 
 - `bool oltp::DBOption::syncOnTxnCommit = false`: 该选项只有在 enableWAL 为 true 时才有意义。
   - 若显示 true，在写事务提交之前，必须等待该事务的所有预写日志持久化完成。
   - 若显示 false，数据库可以在进程崩溃时存活，但无法在操作系统崩溃时存活。在这种模式下，性能通常会更好。
-
 
 **注意**
 
@@ -539,7 +513,7 @@ oltp::DB::DB (const string & *path*, const DBOption & *option*)[explicit]
 
 ## 类：oltp::NeedRetryException
 
-\#include <EmbeddedOLTP.h>
+\#include <Swordfish.h>
 
 ### 公有成员函数
 
@@ -552,7 +526,7 @@ oltp::DB::DB (const string & *path*, const DBOption & *option*)[explicit]
 
 ## 类：oltp::NotRetryException
 
-\#include <EmbeddedOLTP.h>
+\#include <Swordfish.h>
 
 ### 公有成员函数
 
@@ -572,7 +546,6 @@ DML 操作（查询/插入/删除/更新）可能会抛出 **NotRetryException**
 - `RawTableBufferGenerator & operator= (const RawTableBufferGenerator &)=delete`
 - `const RawTableBuffer & get () const`
 
-
 ## 类：oltp::RawTableBufferWriter
 
 ### 公有成员函数
@@ -582,12 +555,11 @@ DML 操作（查询/插入/删除/更新）可能会抛出 **NotRetryException**
 - `void reset (const RawTableBuffer &table, const vector< ColumnDesc > &schema)`
 - `template<typename ... Args> RawTableBufferWriter & append (Args... args)`
 
-
 #### 成员函数
 
 `template<typename ... Args> RawTableBufferWriter & oltp::RawTableBufferWriter::append (Args... *args*)[inline]`
 
-**用法**: 
+**用法**:
 
 ```cpp
 RawTableBufferWriter writer(table, schema);
@@ -624,27 +596,11 @@ writer.append(1, false, 1.0, "a")
 - `std::string toString () const`
 - `bool empty () const`
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # 结构体 (struct) 说明
 
 ## 结构体：oltp::RawTableBuffer
 
-\#include <EmbeddedOLTP.h>
+\#include <Swordfish.h>
 
 ### 公共属性
 
@@ -663,7 +619,7 @@ writer.append(1, false, 1.0, "a")
 
 ## 结构体：oltp::RawTupleBuffer
 
-\#include <EmbeddedOLTP.h>
+\#include <Swordfish.h>
 
 ### 公共属性
 
@@ -688,9 +644,8 @@ writer.append(1, false, 1.0, "a")
 
 - `vector<ColumnDesc> oltp::IndexDescription::key`: 用作索引键的列。
 - `string oltp::IndexDescription::name`: 索引名称。
-- `bool oltp::IndexDescription::primary`: 是否为主键索引。 
+- `bool oltp::IndexDescription::primary`: 是否为主键索引。
 - `bool oltp::IndexDescription::unique`: 是否是唯一索引。
-
 
 ## 结构体：oltp::TableDescription
 
@@ -706,18 +661,7 @@ writer.append(1, false, 1.0, "a")
 - `vector<IndexDescription> oltp::TableDescription::indexes`: 该表的索引
 - `string oltp::TableDescription::name`: 表名
 
-
-
-
 ## 参考
 
-- 包含上述类和结构体的头文件：[EmbeddedOLTP.h](scripts/EmbeddedOLTP.h)
+- 包含上述类、结构体和成员函数的头文件：[Swordfish.h](include/Swordfish.h)
 - [DolphinDB 用户手册](https://www.dolphindb.cn/cn/help/index.html)
-
-
-
-
-
-
-
- 

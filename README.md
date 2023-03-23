@@ -332,6 +332,8 @@ low-level 查询接口相比于 high-level 接口，性能大约有 20% 的提�
 - 清理环境
 - 关闭运行时：`DolphinDBLib::finalizeRuntime()`
 
+面向以下场景例子的脚本编译方法及要求见：[README.demo](README.demo.md)。
+
 ### 通过运行 DolphinDB 脚本创建流数据引擎
 
 在以下场景例子中，初始化运行时环境并连接到数据库后，以先后次序实现了以下功能：
@@ -409,6 +411,9 @@ int main() {
     DolphinDBLib::finalizeRuntime();
 }
 ```
+- 完整代码见：[streamEngineRunDemo](demo/streamEngineRunDemo/main.cpp)
+- CMakeLists 见：[streamEngineRun_CMakeLists](demo/streamEngineRunDemo/CMakeLists.txt)
+- 编译方法见：[README.demo](README.demo.md)
 
 ### 流引擎直接输出到内存 OLTP 表
 
@@ -529,6 +534,10 @@ def cleanEnvironment(rseName="reactiveDemo") {
     dropStreamEngine(rseName)
 }
 ```
+- 完整代码见：[streamEngineDemo](demo/streamEngineDemo/main.cpp)
+- CMakeLists 见：[streamEngineDemo_CMakeLists](demo/streamEngineDemo/CMakeLists.txt)
+- 编译方法见：[README.demo](README.demo.md)
+- .dos 脚本见：[streamEngineDemo_dos](demo/streamEngineDemo/streamEngineTest.dos)
 
 ### 内存 OLTP 表订阅接收引擎输出的流表
 
@@ -622,6 +631,7 @@ int main() {
 }
 ```
 
+
 .dos 脚本如下
 
 ```
@@ -668,6 +678,11 @@ def cleanEnvironment(streamTableName=`outStream, subActName="streamToOLTP", rseN
 }
 ```
 
+- 完整代码见：[streamSubDemo](demo/streamSubDemo/main.cpp)
+- CMakeLists 见：[streamSubDemo_CMakeLists](demo/streamSubDemo/CMakeLists.txt)
+- 编译方法见：[README.demo](README.demo.md)
+- .dos 脚本见：[streamSubDemo_dos](demo/streamSubDemo/subscribeTest.dos)
+
 ### 调用自定义函数和内置函数
 
 以下的例子调用了自定义函数和内置函数：
@@ -701,7 +716,10 @@ int main()
     DolphinDBLib::finalizeRuntime();
 }
 ```
-
+- 完整代码见：[functionDemo](demo/functionDemo/main.cpp)
+- CMakeLists 见：[functionDemo_CMakeLists](demo/functionDemo/CMakeLists.txt)
+- 编译方法见：[README.demo](README.demo.md)
+  
 ### 智能指针（Smart Pointer）
 
 ```cpp
@@ -960,6 +978,9 @@ void testDictionary(DB &db)
   return;
 }
 ```
+- 完整代码见：[objectDemo](demo/objectDemo/main.cpp)
+- CMakeLists 见：[objectDemo_CMakelists](demo/objectDemo/CMakeLists.txt)
+- 编译方法见：[README.demo](README.demo.md)
 
 ### 数据写入、插入、查询、更新与删除
 
@@ -1175,6 +1196,10 @@ int main(int argc, char* argv[])
 }
 ```
 
+- 完整代码见：[crudDemo](demo/crudDemo/main.cpp)
+- CMakeLists 见：[crudDemo_CMakelists](demo/crudDemo/CMakeLists.txt)
+- 编译方法见：[README.demo](README.demo.md)
+
 ## 操作与维护
 
 ### 错误管理
@@ -1351,8 +1376,10 @@ Swordfish 目前支持的数据类型：
 
 ## 接口说明
 
-有关类和结构体的说明详情，见：[API 参考](api.md)
+有关类、结构体及成员函数的说明详情，见：[API 参考](api.md)
 
 ## 参考
 
 - [DolphinDB 用户手册](https://www.dolphindb.cn/cn/help/index.html)
+- [脚本编译方法](README.demo.md)
+- [API 参考](api.md)
