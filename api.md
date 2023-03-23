@@ -64,7 +64,8 @@
   - [结构体：oltp::TableDescription](#结构体oltptabledescription)
     - [公共属性](#公共属性-4)
     - [成员](#成员-3)
-  - [参考](#参考)
+- [参考](#参考)
+
 
 
 # 类 (class) 说明
@@ -665,7 +666,7 @@ writer.append(1, false, 1.0, "a")
 - `vector<IndexDescription> oltp::TableDescription::indexes`: 该表的索引
 - `string oltp::TableDescription::name`: 表名
 
-## 参考
+# 参考
 
 - 包含上述类、结构体和成员函数的头文件：[Swordfish.h](include/Swordfish.h)
 - [DolphinDB 用户手册](https://www.dolphindb.cn/cn/help/index.html)
