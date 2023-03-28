@@ -1,4 +1,4 @@
-set(DemoName curdDemo)
+set(DemoName crudDemo)
 
 aux_source_directory(. SRC_LIST)
 
