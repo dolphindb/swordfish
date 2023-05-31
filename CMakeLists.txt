@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 
-project(demos)
+project(SwordfishDemo)
 
 #######################################################################################################################
 # Check compiler: require g++-4.8.5
@@ -8,13 +8,13 @@ project(demos)
 
 message(STATUS "Compiler: ${CMAKE_CXX_COMPILER} ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 
-if (NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
-    message(FATAL_ERROR "${PROJECT_NAME} only support g++ now, but current compiler is ${CMAKE_CXX_COMPILER_ID}.")
-endif ()
+# if (NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
+#     message(WARNING "${PROJECT_NAME} only support g++ now, but current compiler is ${CMAKE_CXX_COMPILER_ID}.")
+# endif ()
 
-if (NOT CMAKE_CXX_COMPILER_VERSION VERSION_EQUAL 4.8.5)
-    message(FATAL_ERROR "${PROJECT_NAME} requires g++ 4.8.5, but current g++ version is ${CMAKE_CXX_COMPILER_VERSION}.")
-endif ()
+# if (NOT CMAKE_CXX_COMPILER_VERSION VERSION_EQUAL 4.8.5)
+#     message(WARNING "${PROJECT_NAME} requires g++ 4.8.5, but current g++ version is ${CMAKE_CXX_COMPILER_VERSION}.")
+# endif ()
 
 
 #######################################################################################################################
@@ -22,14 +22,15 @@ endif ()
 #######################################################################################################################
 
 add_compile_options(
-    -std=c++11 -D_GLIBCXX_USE_CXX11_ABI=0
+    -std=c++11
+    -D_GLIBCXX_USE_CXX11_ABI=0
     -DLINUX
     -Wall
     -g -O0  # debug build
-    -Wl,-rpath,${PROJECT_SOURCE_DIR}/lib
+    -Wl,-rpath,${PROJECT_SOURCE_DIR}/lib/abi_0
 )
 include_directories( ${PROJECT_SOURCE_DIR}/include )
-link_directories( ${PROJECT_SOURCE_DIR}/lib/ )
+link_directories( ${PROJECT_SOURCE_DIR}/lib/abi_0 )
 
 
 #######################################################################################################################
