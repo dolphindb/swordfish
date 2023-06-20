@@ -1206,12 +1206,13 @@ int main(int argc, char* argv[])
 
 Swordfish 中可能出现的错误信息及解决方法如下：
 
-| **错误信息**                                                          | **错误原因**                                                                                                                                   | **解决办法**                                                   |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| “DolphinDB runtime initialization failed, please check the info log file” | `DolphinDBLib::initializeRuntime()` 初始化 DolphinDB 运行时环境失败                                                                                | 检查 log 文件, 比如*dolphindb.log*                                 |
-| "DolphinDB runtime has been destroyed"                                      | 已经调用 `DolphinDBLib::finalizeRuntime()` 销毁了 DolphinDB 运行时环境, 无法再次初始化                                                             |                                                                      |
+| **错误信息**                                                              | **错误原因**                                                                                                                                         | **解决办法**                                                         |
+|---------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
+| “DolphinDB runtime initialization failed, please check the info log file” | `DolphinDBLib::initializeRuntime()` 初始化 DolphinDB 运行时环境失败                                                                                  | 检查 log 文件, 比如*dolphindb.log*                                   |
+| "DolphinDB runtime has been destroyed"                                    | 已经调用 `DolphinDBLib::finalizeRuntime()` 销毁了 DolphinDB 运行时环境, 无法再次初始化                                                               |                                                                      |
 | “Failed to acquire db-file-lock: locked by other“                         | 该数据库已经被其他进程/线程以读写模式打开                                                                                                            |                                                                      |
 | “Failed to acquire recover-file-lock, retry later”                        | 发生在以只读模式打开数据库时。由于其他进程/线程也正在打开这个数据库，并且正在进行 recover。等待大约 20 秒后，如果 recover 仍未结束，就会报这个错误。 | 在同一个进程中，尽量不要试图在多个线程里以只读模式打开同一个数据库。 |
+| “The feature of publish is not enabled. RefId:S00001”                     | 运行streamEngineRunDemo前发布端没有指定可以连接它进行订阅的节点数量，故不具备发布功能。                                                              | 在编译后可执行文件所在的`/build/bin`路径下新建一个*dolphindb.cfg*配置文件，在其中添加`maxPubConnections`配置参数，并为其赋值。例如：`maxPubConnections=64` 。                          |
 
 ### 配置管理
 
