@@ -1,0 +1,39 @@
+/*
+ *  功能：批计算合成10支股票全天 1s 频率行情数据
+ *  最近一次更新日期：2023.06.06
+ */
+
+// 登录
+login("admin", "123456")
+
+// 创建引擎参数outputTable，即指定输出表
+suffix = string(1..10)
+colNames = `SecurityID`timestamp`lastAppSeqNum`tradingPhaseCode`modified`turnover`volume`tradeNum`totalTurnover`totalVolume`totalTradeNum`lastPx`highPx`lowPx`ask`bid`askVol`bidVol`preClosePx`invalid  join ("bids" + suffix) join ("bidVolumes" + suffix) join ("bidOrderNums" + suffix) join ("asks" + suffix)  join ("askVolumes" + suffix) join ("askOrderNums" + suffix) 
+colTypes = [SYMBOL,TIMESTAMP,LONG,INT,BOOL,DOUBLE,LONG,INT,DOUBLE,LONG,INT,DOUBLE,DOUBLE,DOUBLE,DOUBLE,DOUBLE,LONG,LONG,DOUBLE,BOOL] join take(DOUBLE, 10) join take(LONG, 10) join take(INT, 10) join take(DOUBLE, 10) join take(LONG, 10) join take(INT, 10) 
+outTable = table(10000000:0, colNames, colTypes)
+
+// 创建引擎参数dummyTable，即指定输入表的表结构
+colNames = `SecurityID`Date`Time`SecurityIDSource`SecurityType`Index`SourceType`Type`Price`Qty`BSFlag`BuyNo`SellNo`ApplSeqNum`ChannelNo
+colTypes = [SYMBOL, DATE, TIME, SYMBOL, SYMBOL, LONG, INT, INT, LONG, LONG, INT, LONG, LONG, LONG, INT]
+dummyOrderStream = table(1:0, colNames, colTypes)
+
+// 创建引擎参数inputColMap，即指定输入表各字段的含义
+inputColMap = dict(`codeColumn`timeColumn`typeColumn`priceColumn`qtyColumn`buyOrderColumn`sellOrderColumn`sideColumn`msgTypeColumn`seqColumn, `SecurityID`Time`Type`Price`Qty`BuyNo`SellNo`BSFlag`SourceType`ApplSeqNum)
+
+// 创建引擎参数prevClose，即昨日收盘价，prevClose不影响最终的输出结果中除昨日收盘价以外的其他字段
+prevClose = dict(`000587.SZ`002694.SZ`002822.SZ`000683.SZ`301063.SZ`300459.SZ`300057.SZ`300593.SZ`301035.SZ`300765.SZ, [1.66, 6.56, 6.10, 8.47, 38.10, 5.34, 9.14, 48.81, 60.04, 16.52])
+
+// 释放已有的引擎
+try { dropStreamEngine("demo") } catch(ex) { print(ex) }  
+// 定义引擎，每1s计算输出深交所股票10档买卖盘口
+engine = createOrderBookSnapshotEngine(name="demo", exchange="XSHE", orderbookDepth=10, intervalInMilli = 1000, date=2022.01.10, startTime=09:15:00.000, prevClose=prevClose, dummyTable=dummyOrderStream, outputTable=outTable, inputColMap=inputColMap)
+
+// 从server目录下的csv文件加载输入数据至内存，输入数据为逐笔成交和逐笔委托数据合成的一张表
+filePath = "../../demo/orderbookDemo/orderbookDemoInput.csv"
+colNames = `SecurityID`Date`Time`SecurityIDSource`SecurityType`Index`SourceType`Type`Price`Qty`BSFlag`BuyNo`SellNo`ApplSeqNum`ChannelNo
+colTypes = [SYMBOL, DATE, TIME, SYMBOL, SYMBOL, LONG, INT, INT, LONG, LONG, INT, LONG, LONG, LONG, INT]
+orderTrade = table(1:0, colNames, colTypes)
+orderTrade.append!(select * from loadText(filePath) order by Time)
+
+// 10支股票的逐笔数据批量注入快照合成引擎
+engine.append!(orderTrade)
