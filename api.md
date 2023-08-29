@@ -9971,4 +9971,4 @@ writer.append(1, false, 1.0, "a")
 
 - 包含类 Constant, Vector, Table及其成员函数的头文件：[CoreConcept.h](include/CoreConcept.h)
 - 包含上述除了类 constant, vector 和 table 的类、结构体和成员函数的头文件：[Swordfish.h](include/Swordfish.h)
-- [DolphinDB 用户手册](https://www.dolphindb.cn/cn/help/index.html)
+- [DolphinDB 文档中心](https://docs.dolphindb.cn/help/dita/new_chap_about_sect_about_dolphindb.html)
