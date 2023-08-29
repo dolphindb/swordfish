@@ -1381,6 +1381,6 @@ Swordfish 目前支持的数据类型：
 
 ## 参考
 
-- [DolphinDB 用户手册](https://www.dolphindb.cn/cn/help/index.html)
+- [DolphinDB 文档中心](https://docs.dolphindb.cn/help/dita/new_chap_about_sect_about_dolphindb.html)
 - [脚本编译方法](README.demo.md)
 - [API 参考](api.md)
