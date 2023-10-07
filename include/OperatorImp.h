@@ -12,6 +12,10 @@
 
 namespace OperatorImp{
 
+//functions for other databases
+ConstantSP oracleConcat(const ConstantSP& a, const ConstantSP& b);
+ConstantSP oracleRowNumber(Heap* heap, vector<ConstantSP>& arguments);
+
 //no argument function
 ConstantSP benchmark(const ConstantSP& a, const ConstantSP& b);
 ConstantSP now(const ConstantSP& a, const ConstantSP& b);
@@ -39,7 +43,10 @@ ConstantSP add(const ConstantSP& a, const ConstantSP& b);
 ConstantSP sub(const ConstantSP& a, const ConstantSP& b);
 ConstantSP multiply(const ConstantSP& a, const ConstantSP& b);
 ConstantSP divide(const ConstantSP& a, const ConstantSP& b);
+/** Equivalent to: '/' in Python; and '\' (`ratio`) in DolphinDB. */
 ConstantSP dividePython(const ConstantSP& a, const ConstantSP& b);
+/** Equivalent to: '//' in Python. */
+ConstantSP floorDivide(const ConstantSP& a, const ConstantSP& b);
 ConstantSP ratio(const ConstantSP& a, const ConstantSP& b);
 ConstantSP mod(const ConstantSP& a, const ConstantSP& b);
 ConstantSP modPython(const ConstantSP& a, const ConstantSP& b);
@@ -63,6 +70,7 @@ ConstantSP ne(const ConstantSP& a, const ConstantSP& b);
 ConstantSP equal(const ConstantSP& a, const ConstantSP& b);
 ConstantSP logicAnd(const ConstantSP& a, const ConstantSP& b);
 ConstantSP logicOr(const ConstantSP& a, const ConstantSP& b);
+ConstantSP logicOrIgnoreNull(const ConstantSP& a, const ConstantSP& b);
 ConstantSP logicXor(const ConstantSP& a, const ConstantSP& b);
 ConstantSP bitAnd(const ConstantSP& a, const ConstantSP& b);
 ConstantSP bitOr(const ConstantSP& a, const ConstantSP& b);
@@ -76,6 +84,7 @@ ConstantSP ifNull(const ConstantSP& a, const ConstantSP& b);
 ConstantSP ifValid(const ConstantSP& a, const ConstantSP& b);
 ConstantSP notIn(const ConstantSP& a, const ConstantSP& b);
 ConstantSP notBetween(const ConstantSP& a, const ConstantSP& b);
+ConstantSP notLike(const ConstantSP& a, const ConstantSP& b);
 ConstantSP nullIf(const ConstantSP& a, const ConstantSP& b);
 ConstantSP neAny(const ConstantSP& a, const ConstantSP& b);
 ConstantSP eqAll(const ConstantSP& a, const ConstantSP& b);
@@ -192,6 +201,20 @@ ConstantSP ftmmin(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP ftmprod(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP ftmlast(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP ftmwavg(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumskewTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumkurtosisTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumsumTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumavgTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumvarTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumvarpTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumstdTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumstdpTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumcorrTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumbetaTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumcovarTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumwsumTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP mskewTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP mkurtosisTopN(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP msumTopN(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP mavgTopN(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP mvarTopN(Heap* heap,vector<ConstantSP>& arguments);
@@ -202,6 +225,20 @@ ConstantSP mcorrTopN(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP mbetaTopN(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP mcovarTopN(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP mwsumTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmskewTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmkurtosisTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmsumTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmavgTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmvarTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmvarpTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmstdTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmstdpTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmcorrTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmbetaTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmcovarTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmwsumTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP cumTopN(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP tmovingTopN(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP movingTopN(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP movingTopNIndex(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP movingWindowIndex(Heap* heap,vector<ConstantSP>& arguments);
@@ -232,6 +269,7 @@ ConstantSP columnNames(const ConstantSP& a, const ConstantSP& b);
 ConstantSP rowNames(const ConstantSP& a, const ConstantSP& b);
 
 //aggregate function
+ConstantSP isOrderedDict(const ConstantSP& a, const ConstantSP& b);
 ConstantSP isIndexedMatrix(const ConstantSP& a, const ConstantSP& b);
 ConstantSP isIndexedSeries(const ConstantSP& a, const ConstantSP& b);
 ConstantSP isColumnarTuple(const ConstantSP& a, const ConstantSP& b);
@@ -239,6 +277,7 @@ ConstantSP isVoid(const ConstantSP& a, const ConstantSP& b);
 ConstantSP isNothing(const ConstantSP& a, const ConstantSP& b);
 ConstantSP type(const ConstantSP& a, const ConstantSP& b);
 ConstantSP typestr(const ConstantSP& a, const ConstantSP& b);
+ConstantSP category(const ConstantSP& a, const ConstantSP& b);
 ConstantSP form(const ConstantSP& a, const ConstantSP& b);
 ConstantSP hasNull(const ConstantSP& a, const ConstantSP& b);
 ConstantSP size(const ConstantSP& a, const ConstantSP& b);
@@ -311,6 +350,7 @@ ConstantSP naiveMulti(const ConstantSP& a, const ConstantSP& b);
 ConstantSP strassenMulti(const ConstantSP& a, const ConstantSP& b);
 ConstantSP transpose(const ConstantSP& a, const ConstantSP& b);
 ConstantSP inverse(const ConstantSP& a, const ConstantSP& b);
+ConstantSP pinverse(const ConstantSP& a, const ConstantSP& b);
 ConstantSP det(const ConstantSP& a, const ConstantSP& b);
 ConstantSP solve(const ConstantSP& a, const ConstantSP& b);
 ConstantSP cholesky(const ConstantSP& a, const ConstantSP& b);
@@ -323,12 +363,6 @@ ConstantSP writeBytes(const ConstantSP& a, const ConstantSP& b);
 ConstantSP readBytes(const ConstantSP& a, const ConstantSP& b);
 ConstantSP readLine(const ConstantSP& a, const ConstantSP& b);
 ConstantSP readLines(const ConstantSP& a, const ConstantSP& b);
-ConstantSP exists(const ConstantSP& a, const ConstantSP& b);
-ConstantSP existsDatabase(const ConstantSP& a, const ConstantSP& b);
-ConstantSP existsTable(const ConstantSP& a, const ConstantSP& b);
-ConstantSP existsPartition(const ConstantSP& a, const ConstantSP& b);
-ConstantSP listTables(const ConstantSP& a, const ConstantSP& b);
-ConstantSP getTables(const ConstantSP& a, const ConstantSP& b);
 ConstantSP toJson(const ConstantSP& a, const ConstantSP& b);
 ConstantSP toStdJson(const ConstantSP& a, const ConstantSP& b);
 ConstantSP fromJson(const ConstantSP& a, const ConstantSP& b);
@@ -407,6 +441,9 @@ ConstantSP lowDouble(const ConstantSP& a, const ConstantSP& b);
  */
 ConstantSP asDecimal32(const ConstantSP& a, const ConstantSP& b);
 ConstantSP asDecimal64(const ConstantSP& a, const ConstantSP& b);
+ConstantSP asDecimal128(const ConstantSP& a, const ConstantSP& b);
+
+ConstantSP decimalMultiply(Heap *heap, vector<ConstantSP> &arguments);
 
 //unary math functions
 ConstantSP signum(const ConstantSP& a, const ConstantSP& b);
@@ -474,6 +511,7 @@ ConstantSP cumstdp(const ConstantSP& a, const ConstantSP& b);
 ConstantSP cumvarp(const ConstantSP& a, const ConstantSP& b);
 ConstantSP cumpercentile(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP cumrank(Heap* heap, vector<ConstantSP>& arguments);
+ConstantSP cumdenseRank(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP cummed(const ConstantSP& a, const ConstantSP& b);
 ConstantSP cumcorr(const ConstantSP& a, const ConstantSP& b);
 ConstantSP cumcovar(const ConstantSP& a, const ConstantSP& b);
@@ -585,6 +623,8 @@ ConstantSP sql(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP sqlUpdate(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP sqlDelete(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP evaluate(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP objectComponent(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP objectType(Heap* heap,vector<ConstantSP>& arguments);
 
 ConstantSP getChunkPath(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP sqlDS(Heap* heap,vector<ConstantSP>& arguments);
@@ -650,6 +690,7 @@ ConstantSP adverbFuncCall(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP ej(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP sej(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP lj(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP rj(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP lsj(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP slsj(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP fj(Heap* heap,vector<ConstantSP>& arguments);
@@ -706,6 +747,10 @@ ConstantSP randPoisson(Heap *heap, vector<ConstantSP> &arguments);
 ConstantSP randKolmogorov(Heap *heap, vector<ConstantSP> &arguments);
 ConstantSP randDiscrete(Heap *heap, vector<ConstantSP> &arguments);
 
+ConstantSP fixedIncomeDuration(Heap *heap, vector<ConstantSP> &arguments);
+ConstantSP fixedIncomeConvexity(Heap *heap, vector<ConstantSP> &arguments);
+ConstantSP fixedIncomeDirtyPrice(Heap *heap, vector<ConstantSP> &arguments);
+
 ConstantSP rowMin(Heap *heap, vector<ConstantSP> &arguments);
 ConstantSP rowMax(Heap *heap, vector<ConstantSP> &arguments);
 ConstantSP rowImin(Heap *heap, vector<ConstantSP> &arguments);
@@ -735,6 +780,7 @@ ConstantSP rowPercentChange(Heap *heap, vector<ConstantSP> &arguments);
 ConstantSP rowZscore(Heap *heap, vector<ConstantSP> &arguments);
 ConstantSP rowDemean(Heap *heap, vector<ConstantSP> &arguments);
 ConstantSP rowCumsum(Heap *heap, vector<ConstantSP> &arguments);
+ConstantSP rowCumwsum(Heap *heap, vector<ConstantSP> &arguments);
 ConstantSP rowCumprod(Heap *heap, vector<ConstantSP> &arguments);
 ConstantSP rowCummax(Heap *heap, vector<ConstantSP> &arguments);
 ConstantSP rowCummin(Heap *heap, vector<ConstantSP> &arguments);
@@ -768,6 +814,7 @@ ConstantSP cutPoints(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP wcovariance(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP ns(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP unpivot(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP ungroup(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP rank(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP denseRank(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP isortInPlace(Heap* heap,vector<ConstantSP>& arguments);
@@ -825,6 +872,13 @@ ConstantSP eqFloat(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP oneHot(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP fixedLengthArrayVector(Heap* heap, vector<ConstantSP>& arguments);
 
+ConstantSP exists(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP existsDatabase(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP existsTable(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP existsPartition(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP listTables(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP getTables(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP parseJsonTable(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP extractTextSchema(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP loadText(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP ploadText(Heap* heap,vector<ConstantSP>& arguments);
@@ -885,6 +939,7 @@ ConstantSP checksum(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP toCharArray(Heap* heap, vector<ConstantSP>& arguments);
 
 ConstantSP transFreq(Heap* heap, vector<ConstantSP>& arguments);
+ConstantSP temporalSeq(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP convertTZ(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP temporalAdd(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP dailyAlignedBar(Heap* heap, vector<ConstantSP>& arguments);
@@ -935,9 +990,10 @@ ConstantSP setIndexedSeries(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP setColumnarTuple(Heap* heap,vector<ConstantSP>& arguments);
 
 ConstantSP eqObj(Heap* heap,vector<ConstantSP>& arguments);
-ConstantSP debug(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP license(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP updateLicense(Heap* heap, vector<ConstantSP>& arguments);
+ConstantSP genLicenseAuthorization(Heap* heap, vector<ConstantSP>& arguments);
+ConstantSP readLicenseAuthorization(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP shell(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP loadPlugin(Heap* heap,vector<ConstantSP>& arguments);
 ConstantSP chunkMeta(Heap* heap, vector<ConstantSP>& arguments);
@@ -951,6 +1007,28 @@ ConstantSP getJobMessage(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP getConsoleJobs(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP evalTimer(Heap* heap, vector<ConstantSP>& arguments);
 ConstantSP getPartitionDataFromDS(Heap* heap, vector<ConstantSP>& arguments);
+
+//reduce and running functions for map-reduce of aggregate functions
+ConstantSP stdReduce(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP stdpReduce(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP varReduce(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP varpReduce(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP corrReduce(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP covarReduce(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP skewReduce(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP skewReduce2(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP kurtosisReduce(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP kurtosisReduce2(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP stdRunning(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP stdpRunning(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP varRunning(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP varpRunning(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP corrRunning(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP covarRunning(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP skewRunning(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP skewRunning2(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP kurtosisRunning(Heap* heap,vector<ConstantSP>& arguments);
+ConstantSP kurtosisRunning2(Heap* heap,vector<ConstantSP>& arguments);
 
 //system procedures
 void sleep(Heap* heap,vector<ConstantSP>& arguments);
@@ -977,11 +1055,14 @@ void setRetentionPolicy(Heap* heap,vector<ConstantSP>& arguments);
 void setDatabaseForClusterReplication(Heap* heap,vector<ConstantSP>& arguments);
 void setAtomicLevel(Heap* heap,vector<ConstantSP>& arguments);
 void setRandomSeed(Heap* heap,vector<ConstantSP>& arguments);
+void setMvccColumnDefaultValue(Heap* heap,vector<ConstantSP>& arguments);
+void setMvccColumnNullability(Heap* heap,vector<ConstantSP>& arguments);
 void close(Heap* heap,vector<ConstantSP>& arguments);
 void mkdir(Heap* heap,vector<ConstantSP>& arguments);
 void rmdir(Heap* heap,vector<ConstantSP>& arguments);
 void rm(Heap* heap,vector<ConstantSP>& arguments);
 void setSystem(Heap* heap,vector<ConstantSP>& arguments);
+void setSQLStandard(Heap* heap,vector<ConstantSP>& arguments);
 void addFunctionalViewInternal(Heap* heap,vector<ConstantSP>& arguments);
 void updateFunctionViewOnDatanode(Heap* heap,vector<ConstantSP>& arguments);
 void dropFunctionalViewInternal(Heap* heap,vector<ConstantSP>& arguments);
@@ -1008,6 +1089,7 @@ void saveColumn(Heap* heap, vector<ConstantSP>& arguments);
 void updateTabletChunk(Heap* heap, vector<ConstantSP>& arguments);
 void loadModule(Heap* heap, vector<ConstantSP>& arguments);
 void saveModule(Heap* heap, vector<ConstantSP>& arguments);
+ConstantSP uploadModule(Heap* heap, vector<ConstantSP>& arguments);
 void appendMsg(Heap* heap,vector<ConstantSP>& arguments);
 
 bool isAllTrue(const ConstantSP& obj);
@@ -1088,10 +1170,10 @@ typedef ConstantSP(*CompareFunc)(const ConstantSP&,const ConstantSP&, bool nullA
  *
  * By default, only process numeric columns in a table
  */
-ConstantSP computeUnary(const ConstantSP& a, const ConstantSP& b, OptrFunc optr, int semanticCategory = 1);
+ConstantSP computeUnary(const ConstantSP& a, const ConstantSP& b, OptrFunc optr, int semanticCategory = 1, int objIndex = 0);
 ConstantSP computeUnary(Heap* heap, vector<ConstantSP>& args, SysFunc optr, int semanticCategory = 1, int objIndex= -1);
 ConstantSP computeBinary(const ConstantSP& a, const ConstantSP& b, OptrFunc optr, int semanticCategory = 1);
-ConstantSP eachColumn(const ConstantSP& a, const ConstantSP& b, OptrFunc optr, int semanticCategory = 1, bool isAggregate = false, bool isPair = false);
+ConstantSP eachColumn(const ConstantSP& a, const ConstantSP& b, OptrFunc optr, int semanticCategory = 1, bool isAggregate = false, bool isPair = false, bool isVector = true);
 ConstantSP eachColumn(Heap* heap, vector<ConstantSP>& args, SysFunc optr, int secondMatrixIndex, int semanticCategory = 1, bool isAggregate = false, bool isPair = false);
 template<class T>
 ConstantSP eachMatrix(Heap* heap, vector<ConstantSP>& args, T optr, FastFunc fastFunc, int secondMatrixIndex, bool aggregate);

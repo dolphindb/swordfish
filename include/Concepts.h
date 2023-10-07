@@ -75,6 +75,8 @@ class CacheEngine;
 class InMemoryTableFactory;
 class InMemoryOltpFactory;
 class AsyncReplicationOp;
+class LocalSubscriber;
+class PublishConnection;
 
 typedef SmartPointer<SharedHeap> SharedHeapSP;
 typedef SmartPointer<DolphinClass> DolphinClassSP;
@@ -116,6 +118,8 @@ typedef SmartPointer<StorageEngine> StorageEngineSP;
 typedef SmartPointer<InMemoryTableFactory> InMemoryTableFactorySP;
 typedef SmartPointer<InMemoryOltpFactory> InMemoryOltpFactorySP;
 typedef SmartPointer<AsyncReplicationOp> AsyncReplicationOpSP;
+typedef SmartPointer<LocalSubscriber> LocalSubscriberSP;
+typedef SmartPointer<PublishConnection> PublishConnectionSP;
 
 #define JIT_UNKNOWN_INFERRED_TYPE InferredType()
 #define JIT_IGNORE_INFERRED_TYPE InferredType((DATA_FORM)-1, DT_VOID, (DATA_CATEGORY)-1)
@@ -181,6 +185,10 @@ public:
 	virtual IO_ERR serializeClass(const ByteArrayCodeBufferSP& buffer) const;
 	virtual IO_ERR deserializeClass(Session* session, const DataInputStreamSP& in);
 
+	/** Call class constructor, return an instance of this class. */
+	virtual ConstantSP call(Heap *heap, const ConstantSP &self, vector<ObjectSP> &arguments) override;
+	virtual ConstantSP call(Heap *heap, const ConstantSP &self, vector<ConstantSP> &arguments) override;
+
 	static OOClassSP createDolphinClass(const string& qualifier, const string& name){
 		return new DolphinClass(qualifier, name);
 	}
@@ -230,11 +238,14 @@ public:
 	virtual ConstantSP getValue(Heap* pHeap) { return getReference(pHeap);}
 	virtual ConstantSP getReference(Heap* pHeap);
 	virtual OBJECT_TYPE getObjectType() const {return TUPLE;}
+	virtual ConstantSP getComponent() const;
 	virtual string getScript() const;
 	virtual IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const;
 	virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const;
 	virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const;
 	virtual void collectVariables(vector<int>& vars, int minIndex, int maxIndex) const;
+	virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
+	virtual int checkSpecicalFunction(bool aggrOnly) const;
 	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
 	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
 	virtual bool mayContainColumnRefOrVariable() const { return true;}
@@ -259,6 +270,7 @@ public:
 	virtual ConstantSP getValue(Heap* pHeap);
 	virtual ConstantSP getReference(Heap* pHeap);
 	virtual OBJECT_TYPE getObjectType() const {return COLUMNDEF;}
+	virtual ConstantSP getComponent() const;
 	virtual string getScript() const;
 	virtual IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const;
 	virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const { colDef_->collectUserDefinedFunctions(functionDefs);}
@@ -266,6 +278,8 @@ public:
 		colDef_->collectUserDefinedFunctionsAndClasses(pHeap, functionDefs, classes);
 	}
 	virtual void collectVariables(vector<int>& vars, int minIndex, int maxIndex) const { colDef_->collectVariables(vars, minIndex, maxIndex);}
+	virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
+	virtual int checkSpecicalFunction(bool aggrOnly) const;
 	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
 	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
 	virtual bool mayContainColumnRefOrVariable() const { return true;}
@@ -363,15 +377,20 @@ public:
 	virtual ConstantSP getValue(Heap* pHeap){return getReference(pHeap);}
 	virtual ConstantSP getReference(Heap* pHeap) = 0;
 	virtual OBJECT_TYPE getObjectType() const {return TABLEJOINER;}
+	virtual ConstantSP getComponent() const;
 	virtual string getScript() const;
 	virtual IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const;
 	virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const;
 	virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const;
 	virtual void collectVariables(vector<int>& vars, int minIndex, int maxIndex) const;
+	virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
+	virtual int checkSpecicalFunction(bool aggrOnly) const;
     void setTaskFirstLevel(bool flag) {isTaskFirstLevel_ = flag;}
     bool isTaskFirstLevel() const {return isTaskFirstLevel_;}
+	void setIsStandardCJ(bool flag) { isStandardCJ_ = flag; }
+	bool isStandardCJ() const { return isStandardCJ_; }
 protected:
-	void getColumnRefs(const ObjectSP& expr, vector<ColumnRefSP>& cols);
+	bool getColumnRefs(const ObjectSP& expr, vector<ColumnRefSP>& cols) const;
 
 	string name_;
 	SysFunc joiner_;
@@ -380,17 +399,23 @@ protected:
 	SQLContextSP contextSP_;
 	DomainPartitionSP segments_[2];
     bool isTaskFirstLevel_ = true;
+	bool isStandardCJ_ = false;
 };
 
 class SortAttribute{
 public:
-	SortAttribute(const ObjectSP& colDef, bool asc, bool bigNull = false):colDef_(colDef),asc_(asc),bigNull_(bigNull){}
+	SortAttribute(const ObjectSP& colDef, bool asc, char nullsOrder = 0):colDef_(colDef), asc_(asc), nullsOrder_(nullsOrder){}
 	SortAttribute(const SQLContextSP& context, Session* session, const DataInputStreamSP& in);
 	ObjectSP getSortColumn() const {return colDef_;}
 	bool isAscOrder() const {return asc_;}
-	bool isBigNull() const {return bigNull_;}
+	char getNullsOrder() const {return nullsOrder_;}
 	string getScript() const;
 	IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const;
+	SortAttributeSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
+	SortAttributeSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
+	bool mayContainColumnRefOrVariable() const { return true;}
+	void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
+	int checkSpecicalFunction(bool aggrOnly) const;
 	void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const {colDef_->collectUserDefinedFunctions(functionDefs);}
 	void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const {
 		colDef_->collectUserDefinedFunctionsAndClasses(pHeap, functionDefs, classes);
@@ -399,7 +424,7 @@ public:
 private:
 	ObjectSP colDef_;
 	bool asc_;
-	bool bigNull_;
+	char nullsOrder_; //0: none, 1: nulls first, 2: nulls last
 };
 
 class CaseWhen : public Object {
@@ -412,11 +437,14 @@ public:
 	virtual ConstantSP getReference(Heap* pHeap);
 	virtual ConstantSP getValue(Heap* pHeap) { return getReference(pHeap); }
 	virtual OBJECT_TYPE getObjectType() const { return CASEWHEN; }
+	virtual ConstantSP getComponent() const;
 	virtual string getScript() const;
 	virtual IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const;
 	virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const;
 	virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const;
 	virtual void collectVariables(vector<int>& vars, int minIndex, int maxIndex) const;
+	virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
+	virtual int checkSpecicalFunction(bool aggrOnly) const;
 	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
 	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
 	virtual bool mayContainColumnRefOrVariable() const { return true;}
@@ -424,6 +452,7 @@ public:
 	inline const ObjectSP& getWhenObject(int index) const { return when_[index];}
 	inline const ObjectSP& getThenObject(int index) const { return value_[index];}
 	inline const ObjectSP& getElseObject() const { return otherValue_;}
+	inline const ObjectSP& getCaseObject() const { return caseExpr_;}
 
 private:
 	ConstantSP evaluateWithCaseExpr(Heap* heap);
@@ -436,6 +465,89 @@ private:
 	ObjectSP otherValue_;
 };
 
+class AnalyticFunction : public Object {
+public:
+	AnalyticFunction(const FunctionSP& func, const FunctionSP& windowFunc, const FunctionSP& contextbyFunc,
+		const vector<ObjectSP>& partitions, const vector<SortAttributeSP>& orders,
+		const ObjectSP& windowStart, bool precedingCurRow, const ObjectSP& windowEnd, bool followingCurRow, bool rangeMode);
+	AnalyticFunction(Session* session, const FunctionSP& func, const vector<ObjectSP>& partitions, const vector<SortAttributeSP>& orders,
+			const ObjectSP& windowStart, bool precedingCurRow, const ObjectSP& windowEnd, bool followingCurRow, bool rangeMode);
+	AnalyticFunction(const SQLContextSP& context, Session* session, const DataInputStreamSP& in);
+	virtual ~AnalyticFunction(){}
+
+	/**
+	 * Convert the analytic function to a built-in window function call. Usually the retrieved window function will
+	 * work together with CONTEXTBY clause.
+	 *
+	 * Example: avg(price) over (partition by secId order by timestamp) between 1 preceding and current row
+	 * return mavg(price, 2)
+	 *
+	 * partition clause and order clause will appear in contextby clause.
+	 */
+	const FunctionSP& getWindowFunction() const { return windowFunc_;}
+
+	/**
+	 *Convert the analytic function to an equivalent function of contextby.
+	 */
+	const FunctionSP& getContextByFunction() const { return contextbyFunc_;}
+	const FunctionSP& getFunction() const { return func_;}
+	const vector<ObjectSP>& getPartitionClause() const { return partitions_;}
+	const vector<SortAttributeSP>& getOrderClause() const { return orders_;}
+	const ObjectSP& getWindowStart() const { return windowStart_;}
+	const ObjectSP& getWindowEnd() const { return windowEnd_;}
+	bool isWindowStartPrecedingCurRow() const { return precedingCurRow_;}
+	bool isWindowEndfollowingCurRow() const { return followingCurRow_;}
+	bool isRangeMode() const { return rangeMode_;}
+
+	/**
+	 * Convert to a call of function contextby and then evaluate. The returned vector will be in the same order with
+	 *  the original input.
+	 */
+	virtual ConstantSP getReference(Heap* pHeap);
+	virtual ConstantSP getValue(Heap* pHeap) { return getReference(pHeap); }
+	virtual OBJECT_TYPE getObjectType() const { return ANALYTICALFUNC; }
+	virtual ConstantSP getComponent() const;
+	virtual string getScript() const;
+	virtual IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const;
+	virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const;
+	virtual void collectVariables(vector<int>& vars, int minIndex, int maxIndex) const;
+	virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
+	virtual int checkSpecicalFunction(bool aggrOnly) const;
+	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
+	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
+	virtual bool mayContainColumnRefOrVariable() const { return true;}
+	virtual bool containAnalyticFunction() const { return true;}
+
+private:
+	void convertToBuiltinFunction(Session* session);
+
+private:
+	FunctionSP func_;
+	FunctionSP windowFunc_;
+	FunctionSP contextbyFunc_;
+	vector<ObjectSP> partitions_;
+	vector<SortAttributeSP> orders_;
+
+	/**
+	 * window starting point
+	 * INDEX_MIN: unbounded, 0: current row, other positive values: offset to current row
+	 */
+	ObjectSP windowStart_;
+
+	/**
+	 * window ending point
+	 * INDEX_MIN: unbounded, 0: current row, other positive values: offset to current row
+	 */
+	ObjectSP windowEnd_;
+
+	/**
+	 * true: range mode, false: row mode
+	 */
+	bool precedingCurRow_;
+	bool followingCurRow_;
+	bool rangeMode_;
+};
+
 class ExistsObj : public Object {
 public:
 	ExistsObj(const ObjectSP& query) : query_(query) {}
@@ -445,6 +557,7 @@ public:
 	virtual ConstantSP getReference(Heap* pHeap);
 	virtual ConstantSP getValue(Heap* pHeap) { return getReference(pHeap); }
 	virtual OBJECT_TYPE getObjectType() const { return SQLEXISTS; }
+	virtual ConstantSP getComponent() const;
 	virtual string getScript() const;
 	virtual IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const;
 
@@ -477,8 +590,8 @@ private:
 
 class SQLWithQuery : public Object {
 public:
-	SQLWithQuery(const vector<string>& asNames, const vector<vector<string>>& asColumnAlias,
-			const vector<SQLQuerySP>&asQueries, const SQLQuerySP& lastQuery) : asNames_(asNames), asColumnAlias_(asColumnAlias),
+	SQLWithQuery(const vector<VariableSP>& tmpNames, const vector<vector<string>>& asColumnAlias,
+			const vector<SQLQuerySP>&asQueries, const SQLQuerySP& lastQuery) : tmpNames_(tmpNames), asColumnAlias_(asColumnAlias),
 			asQueries_(asQueries), lastQuery_(lastQuery) {}
 	SQLWithQuery(Session* session, const DataInputStreamSP& in);
 	~SQLWithQuery();
@@ -486,15 +599,12 @@ public:
 	virtual ConstantSP getReference(Heap* pHeap);
 	virtual ConstantSP getValue(Heap* pHeap) { return getReference(pHeap); }
 	virtual OBJECT_TYPE getObjectType() const { return SQLWITHQUERY; }
+	virtual ConstantSP getComponent() const;
 	virtual string getScript() const;
 	virtual IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const;
 
-private: // only be used in current session for destruction, don't serialize it
-	Heap* heap_ = nullptr;
-	vector<pair<string, ConstantSP>> overrideItems_;
-
 private:
-	vector<string> asNames_;
+	vector<VariableSP> tmpNames_;
 	vector<vector<string>> asColumnAlias_;
 	vector<SQLQuerySP> asQueries_;
 	SQLQuerySP lastQuery_;
@@ -545,12 +655,23 @@ public:
     bool isHintForValuePartitionOptimizedForTemporal() const { return hint_ & 1048576;}
 	void setHintForVectorizedGroup(bool option){ if(option) hint_ |= 4194304; else hint_ &= ~4194304;}
     bool isHintForVectorizedGroup() const { return hint_ & 4194304;}
+	void setHintForPlanning(bool option){ if(option) hint_ |= 8388608; else hint_ &= ~8388608;}
+	bool isHintForPlanning() const { return hint_ & 8388608;}
+    void setHinNotAddGroupingColumn(bool option){ if(option) hint_ |= 8388608; else hint_ &= ~16777216;}
+    bool isHintNotAddGroupingColumn() const { return hint_ & 16777216;}
+	void setHintForPytorchTensor(bool option) { if (option) hint_ |= 33554432; else hint_ &= ~33554432; }
+	bool isHintForPytorchTensor() const { return hint_ & 33554432; }
+	void setHintForAnalyticFunctionInSelectList(bool option) { if(option) hint_ |= 67108864; else hint_ &= ~67108864; }
+	bool isHintForAnalyticFunctionInSelectList() const { return hint_ & 67108864;}
     int getStart() const {return start_;}
 	int getEnd() const {return end_;}
 	bool isExecMode() const {return exec_ & 1;}
 	bool isSubqueryMode() const {return exec_ & 2;}
 	bool isDistinctMode() const {return exec_ & 4;}
-	void setSubqueryMode() {exec_ |= 2;}
+	void setExecMode(bool option) { if(option) exec_ |= 1; else exec_ &= ~1;}
+	void setSubqueryMode(bool option) { if(option) exec_ |= 2; else exec_ &= ~2;}
+	void setDistinctMode(bool option) { if(option) exec_ |= 4; else exec_ &= ~4;}
+	char getExec() const {return exec_;}
 	DomainPartitionSP getSegment() const { return segment_;}
 	const vector<ColumnDefSP>& getSelectList() const { return select_;}
 	const vector<ObjectSP>& getWhereClause() const { return where_;}
@@ -561,6 +682,8 @@ public:
 	int getRunningGroupCount() const { return cgroups_;}
 	ObjectSP getHavingClause() const {return having_;}
 	ObjectSP getFromObject() const {return from_;}
+	ObjectSP getRowCount() const {return rowCount_;}
+	ObjectSP getRowOffset() const {return rowOffset_;}
 	virtual ConstantSP getValue(Heap* pHeap){ return getReference(pHeap);}
 	virtual ConstantSP getReference(Heap* pHeap) = 0;
 
@@ -596,12 +719,11 @@ public:
 	virtual SQLQuery* copy(Heap* heap, const SQLContextSP& context) = 0;
 
 	virtual OBJECT_TYPE getObjectType() const {return SQLQUERY;}
+	virtual ConstantSP getComponent() const;
 	virtual string getScript() const;
 	virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const;
 	virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const;
 	virtual void collectVariables(vector<int>& vars, int minIndex, int maxIndex) const;
-	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
-	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
 	virtual bool mayContainColumnRefOrVariable() const { return true;}
 	/**
 	 * reshuffle: an in-out parameter. If reshuffle is true, check if the partitioned tables in a join need reshuffle.
@@ -612,6 +734,7 @@ public:
 	virtual void getFinalSelectList(TableSP table, vector<ObjectSP>& selects, vector<string>& colNames) const  = 0;
 	static ObjectSP copyWithNewSQLContext(const SQLContextSP& context, const ObjectSP& originalObj);
 	static ObjectSP materializeWithNewSQLContext(Heap* heap, const SQLContextSP& context, const ObjectSP& originalObj);
+	static ObjectSP renameAndMaterializeWithNewSQLContext(Heap* heap, const SQLContextSP& context, const ObjectSP& originalObj, const string& colName, const string& qualifier);
 	static bool generateColumnDefListFromMetaCode(const SQLContextSP& context, const ConstantSP& columnDefs, vector<ColumnDefSP>& output);
 	static bool generateObjectListFromMetaCode(const SQLContextSP& context, const ConstantSP& columnDefs, vector<ObjectSP>& output);
 
@@ -632,6 +755,7 @@ protected:
 	//bit2: 0: regular mode, 1: distinct mode
 	char exec_;
 	vector<ColumnDefSP> select_;
+	vector<int> afList_;
 	ObjectSP from_;
 	vector<ObjectSP> where_;
 	vector<SortAttributeSP> sorting_;
@@ -666,6 +790,10 @@ protected:
 	//bit20: 0 may means nothing, 1: optimize group by for temporal column with value partition
 	//bit21: 0 may means nothing, 1: use compression for remote call
 	//bit22: 0 may means nothing, 1: use vectorized group if possible
+	//bit23: 0 may means nothing, 1: SQL planning
+	//bit24: 0 automatically add grouping columns to select list, 1: don't add
+	//bit25: 0 means nothing, 1: use Pytorch Tensor
+	//bit26: 0 select list doesn't contain analytic functions, 1: contain analytic functions
 	int hint_;
 	DomainPartitionSP segment_;
 	DomainPartitionSP rightSegment_;
@@ -684,6 +812,7 @@ public:
 	long long getTransactionId() const { return transactionId_;}
 	virtual ~SQLUpdate(){}
 	virtual OBJECT_TYPE getObjectType() const {return SQLUPDATE;}
+	virtual ConstantSP getComponent() const;
 	virtual string getScript() const;
 	virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const;
 	virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const;
@@ -729,6 +858,7 @@ public:
 	void setTransactionId(long long transId) { transactionId_ = transId;}
 	long long getTransactionId() const { return transactionId_;}
 	virtual OBJECT_TYPE getObjectType() const {return SQLDELETE;}
+	virtual ConstantSP getComponent() const;
 	virtual string getScript() const;
 	virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const;
 	virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const;
@@ -765,6 +895,7 @@ public:
 	Variable(const DataInputStreamSP& in);
 	virtual ~Variable(){}
 	virtual OBJECT_TYPE getObjectType() const {return VAR;}
+	virtual ConstantSP getComponent() const;
 	virtual ConstantSP getValue(Heap* pHeap);
 	virtual ConstantSP getReference(Heap* pHeap);
 	bool setValue(Heap* pHeap,const ConstantSP& val, bool constant);
@@ -845,6 +976,8 @@ public:
 	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
 	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
 	virtual bool mayContainColumnRefOrVariable() const { return true;}
+	virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
+	virtual int checkSpecicalFunction(bool aggrOnly) const;
 	const string& getMethodName() const { return methodName_;}
 	int getArgumentCount() const { return args_.size();}
 	const ObjectSP& getArgument(int index) const { return args_[index];}
@@ -862,6 +995,7 @@ public:
 	Dimension(Session* session, const DataInputStreamSP& in);
 	virtual ~Dimension(){}
 	virtual OBJECT_TYPE getObjectType() const {return DIM;}
+	virtual ConstantSP getComponent() const;
 	virtual ConstantSP getValue(Heap* pHeap);
 	virtual ConstantSP getReference(Heap* pHeap);
 	int getDimensionCount() const {return dims_.size();}
@@ -871,6 +1005,8 @@ public:
 	virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const;
 	virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const;
 	virtual void collectVariables(vector<int>& vars, int minIndex, int maxIndex) const;
+	virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
+	virtual int checkSpecicalFunction(bool aggrOnly) const;
 	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
 	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
 	virtual bool mayContainColumnRefOrVariable() const { return true;}
@@ -888,6 +1024,7 @@ public:
 	Expression(const SQLContextSP& context, Session* session, const DataInputStreamSP& in);
 	virtual ~Expression(){}
 	virtual OBJECT_TYPE getObjectType() const {return EXPRESSION;}
+	virtual ConstantSP getComponent() const;
 	virtual ConstantSP getReference(Heap* pHeap);
 	virtual ConstantSP getValue(Heap* pHeap);
 	int getObjectCount() const {return objs_.size();}
@@ -911,6 +1048,9 @@ public:
 	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
 	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
 	virtual bool mayContainColumnRefOrVariable() const { return true;}
+	virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
+	virtual int checkSpecicalFunction(bool aggrOnly) const;
+	virtual bool containAnalyticFunction() const;
 
 	static ConstantSP void_;
 	static ConstantSP null_;
@@ -939,9 +1079,9 @@ private:
      * from the where clause. In this use case:
      * 	bit0: 0 the part of the expression is used to decide the relevant partition.
      * 	      1 the whole expression is used to decide the relevant partition.
-     * 	bit1: value partition column is used to decide the relevant partition.
-     * 	bit2: range partition column is used to decide the relevant partition.
-     * 	bit3: list partition column is used to decide the relevant partition.
+     * 	bit1: value partitioning column is used to decide the relevant partition.
+     * 	bit2: range partitioning column is used to decide the relevant partition.
+     * 	bit3: list partitioning column is used to decide the relevant partition.
      */
     int annotation_;
 };
@@ -951,6 +1091,7 @@ public:
 	Function(const FunctionDefSP& funcSP) : funcSP_(funcSP){}
 	virtual ~Function(){}
 	virtual OBJECT_TYPE getObjectType() const {return FUNCTION;}
+	virtual ConstantSP getComponent() const;
 	const FunctionDefSP& getFunctionDef() const {return funcSP_;}
 	virtual ConstantSP getValue(Heap* pHeap) {return getReference(pHeap);}
 	virtual ConstantSP getReference(Heap* pHeap) = 0;
@@ -968,6 +1109,9 @@ public:
 	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
 	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
 	virtual bool mayContainColumnRefOrVariable() const { return true;}
+	virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
+	virtual int checkSpecicalFunction(bool aggrOnly) const;
+	virtual bool containAnalyticFunction() const;
 
 protected:
 	FunctionDefSP funcSP_;
@@ -1098,7 +1242,7 @@ public:
 	inline void setCompressionOption(bool option) { compression_ = option;}
 	inline bool isInfra() const { return infra_;}
 	inline void setInfra(bool option) { infra_ = option;}
-	int getFlag() const;
+	long long getFlag() const;
 	void getAllSites(vector<int>& sites) const;
 	void logStart() const;
 	inline bool autoTransfer() const { return autoTransfer_;}
@@ -1198,6 +1342,7 @@ public:
 	virtual int getConnectionNum() const = 0;
 	virtual void shutdownListener() = 0;
 	virtual int getRunningWorkerCount() = 0;
+	virtual int getRunningTaskCount() = 0;
 	virtual int getRunningJobCount() = 0;
 	virtual void closeConnection(SOCKET socketId, Console* pConsole) = 0;
 	virtual void closeSession(const vector<long long>& sessionIds) = 0;
@@ -1220,7 +1365,7 @@ class AsynchronousPublisher : public Runnable {
 public:
 	AsynchronousPublisher(){}
 	virtual ~AsynchronousPublisher(){}
-	virtual bool addConnection(const TableUpdateQueueSP& messageQueue, const DomainSite& site) = 0;
+	virtual PublishConnectionSP addConnection(const TableUpdateQueueSP& messageQueue, const DomainSite& site) = 0;
 	virtual bool removeConnection(const DomainSite& site) = 0;
 	virtual ConstantSP getStat() const = 0;
 	virtual void addRequest(ConsoleSP requestConsole) = 0;
@@ -1229,7 +1374,12 @@ public:
 	 *
 	 * @return memory size in bytes.
 	 */
+	virtual DomainSite getSubscribe(const string & action) = 0;
+	virtual bool addSubscribe(const string & action, DomainSite& site) = 0;
+	virtual bool removeSubscribe(const string & action) = 0;
+	virtual void subscribeDisconnect(const string subscribeSite) = 0;
 	virtual long long getConsumedMemSize() const = 0;
+    virtual void addToEpoll(PublishConnection* conn) = 0;
 };
 
 class AsynchronousSubscriber: public Runnable{
@@ -1241,10 +1391,6 @@ public:
 	virtual void getLatencyMetrics(long long& lastMsgLatency, long long& cumMsgLatency) const = 0;
 	virtual void removeTopic(const string& topic, int executorHash) = 0;
 	virtual ConstantSP requestRemotePublishTable(Heap* heap,vector<ConstantSP>& arguments) = 0;
-	virtual DomainSite getSubscribe(const string & action) = 0;
-	virtual bool addSubscribe(const string & action, DomainSite& site) = 0;
-	virtual bool removeSubscribe(const string & action) = 0;
-	virtual void subscribeDisconnect(const string subscribeSite) = 0;
 	virtual bool addTopicInReconnProcessing(const string & topic) = 0;
 	virtual bool removeTopicInReconnProcessing(const string & topic) = 0;
 	/**
@@ -1260,10 +1406,10 @@ public:
 	virtual ~BatchJobManager(){}
 	virtual ConstantSP submitJob(const AuthenticatedUserSP& user, const string& jobIdPrefix, const string& jobDesc,
 			int priority, int parallelism, const string &clientIp, int clientPort, const FunctionDefSP& func,
-			vector<ConstantSP>& args) = 0;
+			vector<ConstantSP>& args, bool setViewMode) = 0;
 	virtual TableSP getRecentJobs(int count) = 0;
 	virtual TableSP getJobStatus(const string& jobId) = 0;
-	virtual ConstantSP getJobReturn(const string& jobId, bool blocking) = 0;
+	virtual ConstantSP getJobReturn(Heap* heap, const string& jobId, bool blocking) = 0;
 	virtual ConstantSP getJobMessage(const string& jobId) = 0;
 	virtual int getRunningJobCount() = 0;
 	virtual int getQueuedJobCount() = 0;
@@ -1451,7 +1597,7 @@ public:
     virtual SymbolBaseSP getSymbolBase(const Guid& guid) = 0;
     virtual SymbolBaseSP getCachedSymbolBase(const Guid& guid) = 0;
     virtual void rollback(const vector<Guid>& chunkIds, long long tid) = 0;
-    virtual void complete(const vector<Guid>& chunkIds, long long tid, long long cid) = 0;
+    virtual void complete(Heap* heap, const vector<Guid>& chunkIds, long long tid, long long cid) = 0;
     virtual bool hasUnFinishedJobs() = 0;
     virtual void dfsTableCacheRemoved(const string& dbId, const vector<Guid> & chunkIds, const string & logicalTableName){}
 };
@@ -1463,7 +1609,7 @@ public:
 	/*
 	 * Append data to chunks in batch
 	 */
-	virtual void append(const string& dbUrl, const Guid& chunkId, const string& chunkPath, const string& tableName, const string& physicalTableName, const string& fullPhysicalPath,  const SymbolBaseSP& symbase,
+	virtual void append(Heap* heap, const string& dbUrl, const Guid& chunkId, const string& chunkPath, const string& tableName, const string& physicalTableName, const string& fullPhysicalPath,  const SymbolBaseSP& symbase,
                            long long tid, INDEX existingTableSize, const ConstantSP& table, const vector<ColumnDesc>& columns, IoTransaction* tran, int compressionMode, bool saveSymbolBase, long long lsn) = 0;
 
 	/*
@@ -1471,10 +1617,10 @@ public:
 	 */
 	virtual void replace(const string& dbUrl, const string& tableName, const DFSChunkMetaSP& chunkMeta, const TableSP& data, long long transactionId) = 0;
 
-    virtual void overwriteTablet(const string& dbUrl, const Guid& chunkId, const string& tableName, const string& physicalTableName, const string& oldFullPath, const string& fullPhysicalPath, const SymbolBaseSP& symbase,
+    virtual void overwriteTablet(Heap* heap, const string& dbUrl, const Guid& chunkId, const string& tableName, const string& physicalTableName, const string& oldFullPath, const string& fullPhysicalPath, const SymbolBaseSP& symbase,
                          const ConstantSP& table, const vector<ColumnDesc>& columns, IoTransaction* tran, int compressionMode) = 0;
 
-    virtual void overwriteTabletCols(const string& dbUrl, const Guid& chunkId, const string& tableName, const string& physicalTableName,
+    virtual void overwriteTabletCols(Heap* heap, const string& dbUrl, const Guid& chunkId, const string& tableName, const string& physicalTableName,
                              const string& oldTableFullPath, const string& newTableFullPath,const vector<string>& colNames, const VectorSP& colDatas,
                              const SymbolBaseSP& symbase, const vector<ColumnDesc>& columns, IoTransaction* tran) = 0;
     virtual void overwriteComplete(long long tid, long long cid)  = 0;
@@ -1500,7 +1646,7 @@ public:
 	 * limit: the number of rows to read, positive means from the start, negative means from the end, zero means all
 	 * byKey: whether the limit is by key
 	 */
-	virtual TableSP load(const string& dbUrl, const string& tableName, const DFSChunkMetaSP& chunk, vector<ObjectSP>& filters,
+	virtual TableSP load(Heap* heap, const string& dbUrl, const string& tableName, const DFSChunkMetaSP& chunk, vector<ObjectSP>& filters,
 			const vector<string>& colNames, const vector<pair<string, ConstantSP>>& valuePartitionCols,
 			INDEX limit=0, bool byKey=false) const = 0;
 
@@ -1621,7 +1767,8 @@ class InMemoryTableFactory {
 public:
 	virtual ~InMemoryTableFactory(){}
 	virtual Table* createTable(TABLE_TYPE type, const vector<ConstantSP>& cols, const vector<string>& colNames, const vector<int>& keys) = 0;
-	virtual void addColumn(const TableSP& table, const vector<string>& colNames, const vector<DATA_TYPE>& colTypes) = 0;
+	virtual void addColumn(const TableSP& table, const vector<string>& colNames, const vector<DATA_TYPE>& colTypes,
+						   const vector<int> &colExtras) = 0;
 	virtual bool clearData(const TableSP& table) = 0;
 	static InMemoryTableFactorySP inst_;
 };
@@ -1713,7 +1860,7 @@ public:
 	virtual ReplicationTaskDataSP replicateAppend(DictionarySP taskInfo, const ConstantSP& object) = 0;
 	virtual ReplicationTaskDataSP replicateDropDatabase(DictionarySP taskInfo) = 0;
 	virtual ReplicationTaskDataSP replicateUpsert(DictionarySP taskInfo, const ConstantSP& keyColNames, const ConstantSP& table, bool ignoreNull, const ConstantSP& sortColumns) = 0;
-	virtual ReplicationTaskDataSP replicateDropPartition(DictionarySP taskInfo, const string& dbUrl, const vector<string>& partitionUrls, bool forceDelete, bool deleteSchema) = 0;
+	virtual ReplicationTaskDataSP replicateDropPartition(DictionarySP taskInfo, const string& dbUrl, const ConstantSP& partitionPaths, bool forceDelete, bool deleteSchema) = 0;
 	virtual ReplicationTaskDataSP replicateDropTable(DictionarySP taskInfo, const string& dbUrl) = 0;
 	virtual ReplicationTaskDataSP replicateAddRangePartitions(DictionarySP taskInfo, const vector<ConstantSP>& arguments) = 0;
 	virtual ReplicationTaskDataSP replicateAddValuePartitions(DictionarySP taskInfo, const vector<ConstantSP>& arguments) = 0;
@@ -1738,6 +1885,8 @@ public:
 	
 	static AsyncReplicationOpSP inst_;
 	using Callback = std::function<TaskInfo(long long, DomainSP)>;
+	virtual DictionarySP setSendReplicationDB(const DictionarySP& taskInfo) = 0;
+	virtual bool sendReplicationDB(const DictionarySP& taskInfo) = 0;
 };
 
 #endif /* CONCEPTS_H_ */

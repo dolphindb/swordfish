@@ -13,6 +13,7 @@
 #include "Concurrent.h"
 #include "DolphinString.h"
 #include "Guid.h"
+#include "WideInteger.h"
 
 void* myAlloc(size_t size);
 void myFree(void * ptr);
@@ -317,6 +318,14 @@ template<>
 struct murmur_hasher<double> {
     uint64_t operator()(const double & val);
 };
+template<>
+struct murmur_hasher<wide_integer::int128> {
+    uint64_t operator()(const wide_integer::int128 & val);
+};
+template<>
+struct murmur_hasher<wide_integer::uint128> {
+    uint64_t operator()(const wide_integer::uint128 & val);
+};
 template<class T>
 struct murmur_hasher<T*> {
     uint64_t operator()(const T* val);
@@ -412,6 +421,14 @@ struct XXHasher<float> {
 template<>
 struct XXHasher<double> {
     uint64_t operator()(const double & val);
+};
+template<>
+struct XXHasher<wide_integer::int128> {
+    uint64_t operator()(const wide_integer::int128 & val);
+};
+template<>
+struct XXHasher<wide_integer::uint128> {
+    uint64_t operator()(const wide_integer::uint128 & val);
 };
 template<class T>
 struct XXHasher<T*> {

@@ -1,0 +1,47 @@
+// 创建共享内存表，并加载csv数据
+def loadInputTable(tableName="trade") {
+    share(loadText("../../demo/ohlcDemo/trade.csv"), tableName)
+}
+
+// 创建流引擎的输出流表
+def createEngineOutputStream(tableName="aggrStream") {
+    share(streamTable(10000:0, `MDTime`SecurityID`Open`High`Low`Close`Volume`Time1, `TIME`SYMBOL`INT`INT`INT`INT`INT`NANOTIMESTAMP), tableName)
+}
+
+// 创建最终的结果流表
+def createResultStream(tableName="ohlcStream") {
+    share(streamTable(10000:0, `MDTime`SecurityID`Open`High`Low`Close`Volume`Time1`costTimeInUS, `TIME`SYMBOL`INT`INT`INT`INT`INT`NANOTIMESTAMP`DOUBLE), tableName)
+}
+
+// 订阅处理函数，计算时间差
+def timingHandler(mutable resultTable, msg) {
+    resultTable.append!( select *, (now(true) - Time1)\1000 as `costTimeInUS from msg)
+}
+
+// 创建流引擎
+def createTsEngine(outputTableName="aggrStream", inputTableName="trade", engineName="tsEngine") {
+    createTimeSeriesEngine(
+        name=engineName, windowSize=60000, step=60000, 
+        metrics=<[first(TradePrice),max(TradePrice),min(TradePrice),last(TradePrice),sum(TradeQty), now(true)]>, 
+        dummyTable=objByName(inputTableName), outputTable=objByName(outputTableName,true), timeColumn=`MDTime, keyColumn=`SecurityID
+    )
+}
+
+// 创建订阅
+def subscribeStreamTable(outputTableName="ohlcStream", inputTableName="aggrStream") {
+    subscribeTable(tableName=inputTableName, actionName="timingSub", handler=timingHandler{objByName(outputTableName,true)}, msgAsTable=true)
+}
+
+// 向引擎写入数据
+def insertToEngine(start, length, inputTableName="trade", engineName="tsEngine") {
+    tse = getStreamEngine(engineName)
+    tse.tableInsert(select * from objByName(inputTableName) limit start, length)
+}
+
+// 清理环境
+def cleanEnv(engineName="tsEngine") {
+    dropStreamEngine(engineName)
+    unsubscribeTable(tableName="aggrStream", actionName="timingSub")
+    dropStreamTable("aggrStream")
+    dropStreamTable("ohlcStream")
+}

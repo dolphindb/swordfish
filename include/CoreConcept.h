@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <chrono>
 #include <functional>
+#include <atomic>
 
 #include "Types.h"
 #include "SmartPointer.h"
@@ -26,6 +27,7 @@
 #include "FlatHashmap.h"
 #include "SysIO.h"
 #include "DolphinString.h"
+#include "WideInteger.h"
 
 #if defined(__GNUC__) && __GNUC__ >= 4
 #define LIKELY(x) (__builtin_expect((x), 1))
@@ -96,6 +98,7 @@ struct FunctionSignature;
 class WindowJoinFunction;
 class ColumnContext;
 class Transaction;
+class Parser;
 
 typedef SmartPointer<AuthenticatedUser> AuthenticatedUserSP;
 typedef SmartPointer<ByteArrayCodeBuffer> ByteArrayCodeBufferSP;
@@ -145,6 +148,7 @@ typedef SmartPointer<FunctionSignature> FunctionSignatureSP;
 typedef SmartPointer<WindowJoinFunction> WindowJoinFunctionSP;
 typedef SmartPointer<ColumnContext> ColumnContextSP;
 typedef SmartPointer<Transaction> TransactionSP;
+typedef SmartPointer<Parser> ParserSP;
 
 typedef ConstantSP(*OptrFunc)(const ConstantSP&, const ConstantSP&);
 typedef ConstantSP(*OptrFunc2)(Heap* heap, const ConstantSP&, const ConstantSP&);
@@ -409,7 +413,7 @@ public:
 	int atomicInsert(vector<DolphinString>& symbols, int sizeBeforeInsert);
 	void getOrdinalCandidate(const DolphinString& symbol, int& ordinal, SmartPointer<Array<int> >& ordinalBase);
 	void getOrdinalCandidate(const DolphinString& symbol1, const DolphinString& symbol2, int& ordinal1, int& ordinal2, SmartPointer<Array<int> >& ordinalBase);
-	int* getSortedIndices(bool asc, int& length);
+	int* getSortedIndices(bool asc, char nullsOrder, int& length);
 	inline bool supportOrder() const { return supportOrder_;}
 	/**
 	 * enableOrdinalBase and disableOrdinalBase can't be used in multi-threading environment.
@@ -558,28 +562,50 @@ public:
 	virtual string getScript() const = 0;
 	virtual string getScript(Heap* pHeap) const { return getScript();}
 	virtual IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const = 0;
+	/**
+	 * @brief Get the components of the object in the form of a dictionary.
+	 *
+	 * @return If the object doesn't support this method, return an empty dictionary.
+	 */
+	virtual ConstantSP getComponent() const;
 	virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const {}
 	virtual void collectVariables(vector<int>& vars, int minIndex, int maxIndex) const {}
 	virtual bool isLargeConstant() const {return false;}
 	/**
-	 * Replace the SQLContext of any ColumnRef within the current object with the given new context.
+	 * @biref Retrieve all ColumnRef objects contained in the currrent object.
 	 *
-	 * localize: replace the variable with the concrete object and detach the link of any column
+	 * @param table: Use the given table to judge if a column reference is a variable in the case the name is ambiguous.
+	 * @param columns: in & out parameter, pair<string, string> represents a column's quanlifier and name.
+	 */
+	virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const{}
+	/**
+	 * @brief Check if the current object contains special functions.
+	 *
+	 * @param aggrOnly: if only check aggregate functions.
+	 *
+	 * @return 0 (no aggregate function or order sensitive function), 1 (aggregate function only), or 2 (order sensitive function).
+	 */
+	virtual int checkSpecicalFunction(bool aggrOnly) const { return 0;}
+	/**
+	 * @brief Replace the SQLContext of any ColumnRef within the current object with the given new context.
+	 *
+	 * @param localize: replace the variable with the concrete object and detach the link of any column
 	 * reference to a variable if this parameter is set to true.
 	 *
-	 * If the returned pointer is null, the object doesn't contain any column reference.
+	 * @return If the returned pointer is null, the object doesn't contain any column reference.
 	 */
 	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const { return nullptr;}
 
 	/**
-	 * Replace the SQLContext of any ColumnRef within the current object with the given new context, and materialize
+	 * @brief Replace the SQLContext of any ColumnRef within the current object with the given new context, and materialize
 	 * all variables.
 	 *
-	 * Use the given table to judge if a column reference is a variable in the case the name is ambiguous.
+	 * @param table: Use the given table to judge if a column reference is a variable in the case the name is ambiguous.
 	 *
-	 * If the returned pointer is null, the object doesn't contain any column reference or variable.
+	 * @return If the returned pointer is null, the object doesn't contain any column reference or variable.
 	 */
 	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const { return nullptr;}
+	virtual bool containAnalyticFunction() const { return false;}
 	virtual bool mayContainColumnRefOrVariable() const { return false;}
 	virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const {
 		collectUserDefinedFunctions(functionDefs);
@@ -587,8 +613,8 @@ public:
 };
 
 #define NOT_IMPLEMENT \
-	throw RuntimeException("Data type [" + std::to_string(static_cast<int>(getType())) + \
-			"] does not implement `" + __func__ + "`"); \
+	throw RuntimeException("Data type [" + std::to_string(static_cast<int>(getType())) + "] form [" + \
+			std::to_string(static_cast<int>(getForm())) + "] does not implement `" + __func__ + "`"); \
 //======
 
 class Constant: public Object{
@@ -880,6 +906,11 @@ public:
 	 * @brief Return whether this constant is null.
 	 */
 	virtual bool isNull() const {return false;}
+
+	virtual int getDecimal32(int scale) const { NOT_IMPLEMENT; }
+	virtual long long getDecimal64(int scale) const { NOT_IMPLEMENT; }
+	virtual wide_integer::int128 getDecimal128(int scale) const { NOT_IMPLEMENT; }
+
 	/**
 	 * @brief Set the bool value to this constant.
 	 * 
@@ -1055,6 +1086,7 @@ public:
 	 * @return Integer representation of decimal64.
 	 */
 	virtual long long getDecimal64(INDEX index, int scale) const { NOT_IMPLEMENT; }
+	virtual wide_integer::int128 getDecimal128(INDEX index, int scale) const { NOT_IMPLEMENT; }
 
 	/**
 	 * @brief Get the data of index-th element in this constant.
@@ -1302,6 +1334,7 @@ public:
 	 * @return True if the function call succeed, else false.
 	 */
 	virtual bool getDecimal64(INDEX start, int len, int scale, long long *buf) const { NOT_IMPLEMENT; }
+	virtual bool getDecimal128(INDEX start, int len, int scale, wide_integer::int128 *buf) const { NOT_IMPLEMENT; }
 
 	/**
 	 * @brief Judge the data according to indices is null or not.
@@ -1453,6 +1486,7 @@ public:
 	 * @return True if the function call succeed, else false.
 	 */
 	virtual bool getDecimal64(INDEX *indices, int len, int scale, long long *buf) const { NOT_IMPLEMENT; }
+	virtual bool getDecimal128(INDEX *indices, int len, int scale, wide_integer::int128 *buf) const { NOT_IMPLEMENT; }
 
 	/**
 	 * @brief Get the boolean data from start to (start + len - 1).
@@ -1642,6 +1676,10 @@ public:
 	 * @return A buffer with the data required.
 	 */
 	virtual const long long* getDecimal64Const(INDEX start, int len, int scale, long long *buf) const { NOT_IMPLEMENT; }
+	virtual const wide_integer::int128* getDecimal128Const(INDEX start, int len, int scale,
+			wide_integer::int128 *buf) const {
+		NOT_IMPLEMENT;
+	}
 
 	/**
 	 * @brief Get a buffer for writing data from start to (start + len - 1).
@@ -1815,6 +1853,10 @@ public:
 	 * @return A buffer to write data.
 	 */
 	virtual long long* getDecimal64Buffer(INDEX start, int len, int scale, long long *buf) const { NOT_IMPLEMENT; }
+	virtual wide_integer::int128* getDecimal128Buffer(INDEX start, int len, int scale,
+			wide_integer::int128 *buf) const {
+		NOT_IMPLEMENT;
+	}
 
 	/**
 	 * @brief serialize a constant with type code or datasource to buffer.
@@ -1971,6 +2013,7 @@ public:
 	 * @param val: The value to be set.
 	 */
 	virtual void setDecimal64(INDEX index, int scale, long long val) { NOT_IMPLEMENT; }
+	virtual void setDecimal128(INDEX index, int scale, wide_integer::int128 val) { NOT_IMPLEMENT; }
 
 	/**
 	 * @brief Replace the cell value specified by the index with the new value specified by valueIndex.
@@ -2279,6 +2322,7 @@ public:
 	 * @return True if set succeed, else false.
 	 */
 	virtual bool setDecimal64(INDEX start, int len, int scale, const long long *buf) { NOT_IMPLEMENT; }
+	virtual bool setDecimal128(INDEX start, int len, int scale, const wide_integer::int128 *buf) { NOT_IMPLEMENT; }
 
 	/**
 	 * @brief Add inc to the underlying data from start to (start + length - 1).
@@ -3323,9 +3367,10 @@ public:
 	 * 
 	 * @param asc: Indicating whether this vector is sorted in ascending order(true) or descending order(false).
 	 * @param strict: Indicating whether this vector is strictly increasing(decreasing).
+	 * @param nullsOrder: 0: NONE, 1: NULLS FIRST, 2: NULLS LAST.
 	 * @return True if sorted, else false.
 	*/
-	virtual bool isSorted(bool asc, bool strict = false) const { return isSorted(0, size(), asc, strict);}
+	virtual bool isSorted(bool asc, bool strict = false, char nullsOrder = 0) const { return isSorted(0, size(), asc, strict, nullsOrder);}
 	/**
 	 * @brief Return whether the specified range of this vector is sorted.
 	 * 
@@ -3333,9 +3378,10 @@ public:
 	 * @param length: The length of the specified range.
 	 * @param asc: Indicating whether this vector is sorted in ascending order(true) or descending order(false).
 	 * @param strict: Indicating whether this vector is strictly increasing(decreasing).
+	 * @param nullsOrder: 0: NONE, 1: NULLS FIRST, 2: NULLS LAST.
 	 * @return True if sorted, else false.
 	*/
-	virtual bool isSorted(INDEX start, INDEX length, bool asc, bool strict = false) const = 0;
+	virtual bool isSorted(INDEX start, INDEX length, bool asc, bool strict = false, char nullsOrder = 0) const = 0;
 
 	/**
 	 * @brief Find the first element that is no less than the target value in the sorted vector. If all elements are
@@ -3402,9 +3448,10 @@ public:
 	 * @brief Sort the whole vector with given order.
 	 * 
 	 * @param asc: Indicating if it is ascending order.
+	 * @param nullsOrder: 0: NONE, 1: NULLS FIRST, 2: NULLS LAST.
 	 * @return True if sort succeed, else false.
 	 */
-	virtual bool sort(bool asc) = 0;
+	virtual bool sort(bool asc, char nullsOrder = 0) = 0;
 
 	/**
 	 * @brief Sort the vector and the corresponding indices with given order.
@@ -3412,18 +3459,20 @@ public:
 	 * @param asc: Indicating if it is ascending order.
 	 * @param indices: The corresponding indices of the data to sort.The length of the data should be equal to
 	 * 				   the length of the indices. The indices will be rearranged accordingly during sorting.
+	 * @param nullsOrder: 0: NONE, 1: NULLS FIRST, 2: NULLS LAST.
 	 * @return True if sort succeed, else false.
 	 */
-    virtual bool sort(bool asc, Vector* indices) = 0;
+    virtual bool sort(bool asc, Vector* indices, char nullsOrder = 0) = 0;
 
 	/**
 	 * @brief Sort top-th elements of this vector and the corresponding indices with given order.
 	 *
 	 * @param asc: Indicating if it is ascending order.
 	 * @param indices: The corresponding indices of the data to sort.
+	 * @param nullsOrder: 0: NONE, 1: NULLS FIRST, 2: NULLS LAST.
 	 * @return True if sort succeed, else false.
 	 */
-	virtual INDEX sortTop(bool asc, Vector* indices, INDEX top) {throw RuntimeException("sortTop method not supported");}
+	virtual INDEX sortTop(bool asc, Vector* indices, INDEX top, char nullsOrder = 0) {throw RuntimeException("sortTop method not supported");}
 
 	/**
 	 * @brief Sort the selected indices based on the corresponding data with given order.
@@ -3432,9 +3481,10 @@ public:
 	 * @param start: The start position in indices vector.
 	 * @param length: The number of indices to sort.
 	 * @param asc: Indicating if it is ascending order.
+	 * @param nullsOrder: 0: NONE, 1: NULLS FIRST, 2: NULLS LAST.
 	 * @return True if sort succeed, else false.
 	 */
-	virtual bool sortSelectedIndices(Vector* indices, INDEX start, INDEX length, bool asc) = 0;
+	virtual bool sortSelectedIndices(Vector* indices, INDEX start, INDEX length, bool asc, char nullsOrder = 0) = 0;
 
     /**
      * @brief Find duplicated elements in an ascending-sorted array.
@@ -4357,11 +4407,11 @@ public:
 	 */
 	virtual DomainSP getLocalDomain() const {return DomainSP();}
 	/**
-	 * @brief Return the partition column index of this table.
+	 * @brief Return the partitioning column index of this table.
 	 */
 	virtual int getGlobalPartitionColumnIndex() const {return -1;}
 	/**
-	 * @brief Return the partition column index of this table according to domain dimension.
+	 * @brief Return the partitioning column index of this table according to domain dimension.
 	 * 
 	 * @param dim: The dimension of the composite domain of this table.
 	 */
@@ -4370,7 +4420,7 @@ public:
 	 * @brief Set the global domain of this table.
 	 * 
 	 * @param domain: The global domain.
-	 * @param partitionColumn: The name of partition column of this table.
+	 * @param partitionColumn: The name of partitioning column of this table.
 	 */
 	virtual void setGlobalPartition(const DomainSP& domain, const string& partitionColumn){throw RuntimeException("Table::setGlobalPartition() not supported");}
 	virtual bool isLargeConstant() const {return true;}
@@ -4454,6 +4504,7 @@ public:
 	 * @return The specified messages.
 	 */
 	virtual ConstantSP retrieveMessage(long long offset, int length, bool msgAsTable, const ObjectSP& filter, long long& messageId) { throw RuntimeException("Table::retrieveMessage() not supported"); }
+	virtual INDEX getFilterColumnIndex() const { return -1; };
 	/**
 	 * @brief Return whether this table is snapshot isolate.
 	 */
@@ -4721,6 +4772,10 @@ public:
 	virtual IO_ERR serializeClass(const ByteArrayCodeBufferSP& buffer) const = 0;
 	virtual IO_ERR deserializeClass(Session* session, const DataInputStreamSP& in) = 0;
 
+	/** Call class constructor, return an instance of this class. */
+	virtual ConstantSP call(Heap *heap, const ConstantSP &self, vector<ObjectSP> &arguments) = 0;
+	virtual ConstantSP call(Heap *heap, const ConstantSP &self, vector<ConstantSP> &arguments) = 0;
+
 	/**
 	 * ATTENTION: The extended classes must not override this method. FunctionDef and Class are
 	 * two special citizen in our code. We always serialize classes and function definitions separately
@@ -4790,6 +4845,7 @@ public:
 	inline void setSyntax(const string& syntax){ syntax_ = syntax;}
 	string getSyntax() const;
 	inline void setModule(const string& module) { module_ = module;}
+	inline void setName(const string& name) { name_ = name; }
 	inline bool hasReturnValue() const {return flag_ & 1;}
 	inline bool isAggregatedFunction() const {	return flag_ & 2;}
 	inline bool isAggregatedFunction(int args) const {	return (flag_ & 2) && (argCountForAgg_ == 0 || args == (int)argCountForAgg_);}
@@ -4845,7 +4901,7 @@ public:
 	void checkArgumentSize(int actualArgCount);
 	virtual bool copyable() const {return false;}
 	virtual DATA_TYPE getRawType() const { return DT_STRING;}
-	virtual string getScript() const {return name_;}
+	virtual string getScript() const {return getFullName();}
 	virtual string getString() const {return name_;}
 	virtual IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const = 0;
 	virtual FunctionDefSP materializeFunctionDef(Heap* pHeap) { return FunctionDefSP();}
@@ -4908,7 +4964,8 @@ public:
 	ConstantSP getColumn(const string& name);
 	void cacheColumn(const string& name,const ConstantSP& col);
 	void enableCache();
-	void disableCache(){cache_=false;}
+	void disableCache(){flag_ &= ~1;}
+	inline bool isCacheEnabled() const { return flag_ & 1;}
 	void clear();
 	inline bool isInitialized() const { return !tableSP_.isNull();}
 	inline bool isNotInitialized() const { return tableSP_.isNull();}
@@ -4920,11 +4977,32 @@ public:
 			return true;
 		}
 	}
+	inline bool isWithinMetaCode() const { return flag_ & 2;}
+	inline void setWithinMetaCode(bool option) { if(option) flag_ |= 2; else flag_ &= ~2;}
+	inline bool isColumnRefDisabled() const { return flag_ & 4;}
+	inline void setColumnRefDisabled(bool option) { if(option) flag_ |= 4; else flag_ &= ~4;}
+	inline bool isCommaCrossJoinDisabled() const { return flag_ & 8;}
+	inline void setCommaCrossJoinDisabled(bool option) { if(option) flag_ |= 8; else flag_ &= ~8;}
+	inline bool isWithinFromClause() const { return flag_ & 16;}
+	inline void setWithinFromClause(bool option) { if(option) flag_ |= 16; else flag_ &= ~16;}
+	inline bool isWithinAnalyticFunction() const { return flag_ & 32;}
+	inline void setWithinAnalyticFunction(bool option) { if(option) flag_ |= 32; else flag_ &= ~32;}
+	inline bool isDefinedAnalyticFunction() const { return flag_ & 64;}
+	inline void setDefinedAnalyticFunction(bool option) { if(option) flag_ |= 64; else flag_ &= ~64;}
 
 private:
 	TableSP tableSP_;
 	ConstantSP filterSP_;
-	bool cache_;
+	/**
+	 * bit0: 0: not cache columns, 1: cache
+	 * bit1: 0: not for meta code parsing, 1: for meta code parsing
+	 * bit2: 0: parse as column reference, 1: not parse as column reference
+	 * bit3: 0: allow comma as cross join, 1: not allow as cross join
+	 * bit4: 0: out of SQL FROM clause, 1: within SQL FROM clause
+	 * bit5: 0: not within analytic function, 1: within analytic function
+	 * bit6: 0: not define an analytic function, 1: define an analytic funciton
+	 */
+	int flag_;
 	DictionarySP cachedCols_;
 	SQLTransactionSP transSP_;
 	vector<INDEX>* groups_;
@@ -4943,6 +5021,7 @@ public:
 	virtual ConstantSP getValue(Heap* pHeap);
 	virtual ConstantSP getReference(Heap* pHeap);
 	virtual OBJECT_TYPE getObjectType() const {return COLUMN;}
+	virtual ConstantSP getComponent() const;
 	const SQLContextSP getSQLContext() const {return contextSP_;}
 	const string& getQualifier() const { return qualifier_;}
 	const string& getName() const { return name_;}
@@ -4961,6 +5040,7 @@ public:
 	ColumnRef* localize() const{ return new ColumnRef(contextSP_, qualifier_, name_);}
 	bool operator ==(const ColumnRef& target);
 	virtual void collectVariables(vector<int>& vars, int minIndex, int maxIndex) const { if(index_<=maxIndex && index_>=minIndex) vars.push_back(index_);}
+	virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
 	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
 	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
 	virtual bool mayContainColumnRefOrVariable() const { return true;}
@@ -5026,6 +5106,8 @@ public:
 	virtual bool run(const vector<string>& variables, vector<ConstantSP>& params)=0;
 	virtual bool test(const string& scriptFile, const string& resultFile, bool testMemoryLeaking)=0;
 	virtual FunctionDefSP parseFunctionDef(const string& script) = 0;
+	virtual vector<string> parseModuleStatement(const string& script) = 0;
+	virtual vector<vector<string>> parseUseStatement(const string& script) = 0;
 	virtual bool contain(const string& key) const =0;
 	virtual ConstantSP get(const string& key) const=0;
 	virtual vector<pair<string,ConstantSP>> getAll() const=0;
@@ -5070,6 +5152,7 @@ public:
 	virtual void clear() = 0;
 	virtual SysFunc getTableJoiner(const string& name) const = 0;
 	virtual FunctionDefSP getFunctionDef(const string& name) const = 0;
+	virtual FunctionDefSP getBuiltinFunctionDef(const string& name) const = 0;
 	virtual FunctionDefSP getFunctionView(const string& name) const = 0;
 	virtual TemplateOptr getTemplateOperator(const string& name) const = 0;
 	virtual TemplateUserOptr getTemplateUserOperator(const string& name) const = 0;
@@ -5105,6 +5188,10 @@ public:
 	inline void setEnableTransactionStatement(bool option) { if(option) flag_ |= 2048; else flag_ &= ~2048; }
 	inline bool isStreamingEnv() const { return flag_ & 4096;}
 	inline void setStreamingEnv(bool option) {if(option) flag_ |= 4096; else flag_ &= ~4096; }
+	inline int getSQLStandard() const { return (flag_ >> 13) & 15;}
+	inline void setSQLStandard(int sqlStandard) {flag_ = (flag_ & ~(15<<13)) | (sqlStandard << 13); }
+	inline bool serializeUniqueName() { return flag_ & (1 << 18); }
+	inline void setSerializeUniqueName(bool option) { if (option) flag_ |= (1 << 18); else flag_ &= ~(1 << 18); }
 	virtual TransactionSP getTransaction() { return transaction_; }
 	virtual void setTransaction(const TransactionSP& transaction) { transaction_ =  transaction; }
 	virtual int64_t getAsyncReplicationTaskId() { return asyncReplicationTaskId_; }
@@ -5114,7 +5201,9 @@ public:
 	inline long long getSeqNo() const { return seqNo_;}
 	inline void setSeqNo(long long seqNo) { seqNo_ = seqNo;}
 
-protected:
+    virtual DictionarySP parseScript(const vector<string> &source, const string &currentPath = "", int firstLine = 0) {return nullptr;};
+
+  protected:
 	long long sessionID_;
 	HeapSP heap_;
 	OutputSP out_;
@@ -5127,9 +5216,7 @@ protected:
 	Guid jobId_;
 	int priority_;
 	int parallelism_;
-	// bit11: enableTransactionStatement
 	int flag_;
-	bool enableTransactionStatement_;
 	TransactionSP transaction_;
 	// for async replication task execution
 	int64_t asyncReplicationTaskId_ = 0;
@@ -5192,6 +5279,8 @@ public:
     inline bool isTracing() const { return flag_ & 65536;}
     inline void setTracing() { flag_ |= 65536;}
     inline void setNonTracing() { flag_ &= ~65536;}
+	inline int getSQLStandard() const { return (flag_ >> 19) & 15;}
+	inline void setSQLStandard(int sqlStandard) {flag_ = (flag_ & ~(15<<19)) | (sqlStandard << 19); }
     inline void setParentSpanId(const Guid &spanId) { parentSpanId_ = spanId; }
     inline Guid &getParentSpanId() { return parentSpanId_; }
 	virtual IO_ERR readReady()=0;
@@ -5226,6 +5315,9 @@ protected:
 	 * bit11~14 the parser type
 	 * bit15: 0: pickle table to dataFrame    1: pickle table to list 
 	 * bit16: 0: disable tracing, 1: enable tracing
+	 * bit17: 0: api, 1: stream subscription
+	 * bit18: reserved for output format
+	 * bit19~22: sql standard, 0: dolphindb, 1: oracle, 2: mysql
 	 */
 	long long flag_;
     Guid parentSpanId_;
@@ -5252,28 +5344,6 @@ public:
 protected:
 	ConstantSP obj_;
 };
-
-class DebugContext{
-public:
-	DebugContext();
-	void waitForExecution(Heap* pHeap, Statement* pStatement);
-	void waitForStop();
-	void continueExecution(int steps);
-	void decreaseSteps();
-	int getSteps() const { return steps_;}
-	bool continueFlag() const { return continueFlag_;}
-
-private:
-	int steps_;
-	bool continueFlag_;
-	bool stopped_;
-	Mutex mutex_;
-	ConditionalVariable execCondition_;
-	ConditionalVariable stopCondition_;
-	Heap* lastHeap_;
-	Statement* lastStatement_;
-};
-
 class Heap{
 public:
 	Heap():meta_(0), session_(0), size_(0), status_(0){}
@@ -5289,6 +5359,8 @@ public:
 	inline void setViewMode(bool enabled = true) { if(enabled) status_ |= 1; else status_ &= ~1;}
 	inline bool isDefMode() const { return status_ & 2;}
 	inline void setDefMode() { status_ |= 2; }
+	inline bool isModuleMode() const { return status_ & 4;}
+	inline void setModuleMode(bool enabled = true) { if(enabled) status_ |= 4; else status_ &= ~4; }
 	int getIndex(const string& name) const;
 	int getLocalIndex(const string& name) const;
 	string getName(int index) const;
@@ -5318,6 +5390,8 @@ public:
 		values_[index] = value;
 		flags_[index] = 2;
 	}
+	bool copyMeta(Heap *heap);
+	bool setMetaName(const string &name, int index);
 
 private:
 	struct HeapMeta{
@@ -5374,7 +5448,7 @@ private:
 
 class Statement{
 public:
-	Statement(STATEMENT_TYPE type):breakpoint_(false), jitudfHeader_(nullptr), type_(type){}
+	Statement(STATEMENT_TYPE type):breakpoint_(nullptr), jitudfHeader_(nullptr), type_(type), line_(0), moduleName_(""){}
 	virtual ~Statement(){}
 	virtual StatementSP clone() = 0;
 	STATEMENT_TYPE getType() const {return type_;}
@@ -5383,9 +5457,11 @@ public:
 	virtual string getScript(int indention) const = 0;
 	virtual IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const = 0;
 	virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const {}
-	virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const {}
 	void disableBreakpoint();
 	void enableBreakpoint();
+	virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const {}
+	void setBreakpoint(std::atomic<bool>* breakpoint) { breakpoint_ = breakpoint;}
+	bool getBreakpoint() { return nullptr != breakpoint_ ? breakpoint_->load() : false; }
 
     JITCfgNodeSP getCFGNode() const { return cfgNode_; }
     void setCFGNode(const JITCfgNodeSP& cfg) { cfgNode_ = cfg; }
@@ -5406,19 +5482,21 @@ public:
 	virtual vector<string> getVarNames() const;
 	virtual void setJITUDFHeader(Statement* header);
     void cleanInferredType();
+	void setLine(int line) { line_ = line;}
+	int getLine() { return line_;}
+    void setModuleName(string fileName) { moduleName_ = fileName; }
+    string getModuleName() { return moduleName_; }
 
-protected:
-    void setStatementType(STATEMENT_TYPE type) {
-        type_ = type;
-    }
-
-protected:
-	bool breakpoint_;
+  protected:
+    void setStatementType(STATEMENT_TYPE type) { type_ = type; }
+    std::atomic<bool>* breakpoint_;
 	JITCfgNodeSP cfgNode_;
 	Statement* jitudfHeader_;
 
 private:
 	STATEMENT_TYPE type_;
+	int line_;
+	string moduleName_;
 };
 
 class StatementFactory {
@@ -5654,7 +5732,7 @@ public:
     static string getUniqueIndex(long long id);
 	/*
 	 * The input arguments set1 and set2 must be sorted by the key value of domain partitions. The ranking of key values must be the same as
-	 * the ranking of partition column values when the partition is range-based or value-based.
+	 * the ranking of partitioning column values when the partition is range-based or value-based.
 	 */
 	static void set_interaction(const vector<DomainPartitionSP>& set1, const vector<DomainPartitionSP>& set2, vector<DomainPartitionSP>& result);
 	static void set_union(const vector<DomainPartitionSP>& set1, const vector<DomainPartitionSP>& set2, vector<DomainPartitionSP>& result);
@@ -5760,6 +5838,8 @@ struct TopicSubscribe {
 	bool append(long long msgId, const ConstantSP& msg, long long& outMsgId, ConstantSP& outMsg);
 	bool getMessage(long long now, long long& outMsgId, ConstantSP& outMsg);
 	bool updateSchema(const TableSP& emptyTable);
+	bool isUnsubscribed() { return isUnsubscribed_; }
+	void setUnsubscribed() { isUnsubscribed_ = true; }
 
 	const bool msgAsTable_;
 	const bool persistOffset_;
@@ -5788,6 +5868,7 @@ struct TopicSubscribe {
 	ConstantSP body_;
 	ConstantSP filter_;
 	Mutex mutex_;
+	bool isUnsubscribed_ = false;
 };
 
 class SessionThreadCallGuard {
@@ -5852,12 +5933,13 @@ public:
     inline void setSpanId(const Guid &spanId) { spanId_ = spanId; }
     inline const Guid &getParentSpanId() const { return parentSpanId_; }
     inline void setParentSpanId(const Guid &spanId) { parentSpanId_ = spanId; }
-	void set(Heap* heap, const SessionSP& session, const Guid& jobId, const CountDownLatchSP& latch);
+	void set(Heap* heap, const SessionSP& session, const Guid& jobId, const CountDownLatchSP& latch, bool addDepth = true);
 	void set(Heap* heap, const SessionSP& session);
 	void done(const ConstantSP& result);
 	void done(const string& errMsg);
 	inline const string& getErrorMessage() const {return errMsg_;}
 	inline ConstantSP getResultObject() const {return execResult_;}
+	inline ConstantSP& getResultObjectRef()  {return execResult_;}
 	inline ConstantSP getCarryoverObject() const {return carryoverResult_;}
 	inline bool isLocalData() const { return local_;}
 	inline bool isViewMode() const { return viewMode_;}

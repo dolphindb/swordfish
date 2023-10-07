@@ -20,7 +20,7 @@
 #define MIN_PARALLELISM  1
 #define DEF_PARALLELISM  2
 #define MAX_PARALLELISM  64
-#define MAX_JOB_DEPTH 4
+#define MAX_JOB_DEPTH 6
 
 void checkTaskErrorMsg(const vector<DistributedCallSP>& calls);
 namespace OperatorImp{
@@ -503,7 +503,9 @@ public:
 	virtual ~StaticStageExecutor(){}
 	virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks);
 	virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks, const JobProperty& jobProp);
+	void execute(Heap* heap, const vector<DistributedCallSP>& tasks, const std::function<void(const vector<DistributedCallSP>&, int)>& callback);
     void setForbidProbingGroupSize(bool flag){forbidProbingGroupSize_ = flag;}
+    void setWaitRunningTaskFinishedOnError(bool flag){waitRunningTaskFinishedOnError_ = flag;}
     bool getForbidProbingGroupSize() const {return forbidProbingGroupSize_;}
     void setMonitorProcessAndMemory(bool flag, const string& script){monitorProcessAndMemory_ = flag; script_ = script;}
     bool getMonitorProcessAndMemory() const {return monitorProcessAndMemory_;}
@@ -523,6 +525,7 @@ private:
 	bool scheduleRemoteSite_;
     bool forbidProbingGroupSize_ = true;
     bool monitorProcessAndMemory_ = false;
+    bool waitRunningTaskFinishedOnError_ = false;
     long long monitorId_ = 0;
     string script_;
 };
@@ -544,5 +547,6 @@ private:
 	int queueDepth_;
 	int parallel_;
 };
+
 
 #endif /* COMPUTINGMODEL_H_ */

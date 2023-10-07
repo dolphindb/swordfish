@@ -73,6 +73,26 @@ private:
 	friend class ConditionalVariable;
 };
 
+// Reference: https://en.cppreference.com/w/cpp/thread/recursive_timed_mutex
+class TimedMutex {
+public:
+	TimedMutex();
+	~TimedMutex();
+	void lock();
+	bool tryLock();
+	bool tryLockFor(int milli);
+	void unlock();
+
+private:
+#ifdef WINDOWS
+	HANDLE  mutex_;
+#else
+	pthread_mutexattr_t attr_;
+	pthread_mutex_t mutex_;
+#endif
+	// TimedMutex CANNOT be used with condition variable
+};
+
 class RWLock{
 public:
 	RWLock(bool preferWrite=false);
@@ -533,6 +553,24 @@ public:
 			empty_.notifyAll();
 	}
 
+	bool blockingPush(const T& item, int milliseconds){
+		LockGuard<Mutex> guard(&mutex_);
+		long long curSize = sizeFunc_(item);
+		if(curSize <= 0)
+			return true;
+
+		while(!manFunc_(item) && size_ >= capacity_) {
+			if (!full_.wait(mutex_, milliseconds)) {
+				return false;
+			}
+		}
+		items_.push(item);
+		size_ += curSize;
+		if(items_.size() == 1)
+			empty_.notifyAll();
+		return true;
+	}
+
 	void pop(std::vector<T>& container, long long n){
 		assert(n > 0);
 		LockGuard<Mutex> guard(&mutex_);
@@ -736,6 +774,11 @@ public:
 
 	MutexGroupGuard(const MutexGroupGuard &) = delete;
 	MutexGroupGuard& operator=(const MutexGroupGuard &) = delete;
+	MutexGroupGuard(MutexGroupGuard &&other) noexcept : h_(0), group_(nullptr) {
+		using std::swap;
+		swap(h_, other.h_);
+		swap(group_, other.group_);
+	}
 
 	MutexGroupGuard& operator=(MutexGroupGuard &&other) noexcept {
 		this->unlock();
