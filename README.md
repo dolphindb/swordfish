@@ -181,7 +181,7 @@ std::vector<std::pair<bool, std::vector<std::string>>> secondaryKeys{
 conn.createTable("table1", colDesc, pk, secondaryKeys);
 
 // 删除表 "table1"
-conn.dropTable("table");
+conn.dropTable("table1");
 ```
 
 ### DML 操作
