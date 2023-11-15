@@ -411,6 +411,7 @@ int main() {
     DolphinDBLib::finalizeRuntime();
 }
 ```
+
 - 完整代码见：[streamEngineRunDemo](demo/streamEngineRunDemo/main.cpp)
 - CMakeLists 见：[streamEngineRun_CMakeLists](demo/streamEngineRunDemo/CMakeLists.txt)
 - 编译方法见：[README.demo](README.demo.md)
@@ -426,7 +427,7 @@ int main() {
 5. 清理环境（释放流引擎、释放内存 OLTP 表）
 6. 关闭运行时
 
-C++ 代码如下
+C++ 代码如下：
 
 ```cpp
 int main() {
@@ -468,17 +469,17 @@ int main() {
         std::string code = "produceData("+ std::to_string(BLK_SIZE) +")";
         conn.execute(code);
         std::cout << code << std::endl;
-      
+    
         code = "exec count(*) from objByName(`"+tableName +")";
         auto tableSize = conn.execute(code);
         std::cout << code << std::endl;
         std::cout << tableSize->getString() << std::endl;
-      
+    
         code = "select * from objByName(`"+tableName +") order by time limit " + std::to_string(start) + ", " + std::to_string(BLK_SIZE);
         resultTable = conn.execute(code);
         std::cout << code << std::endl;
         std::cout << resultTable->getString() << std::endl;
-      
+    
         sleep(1);
     }
   
@@ -501,7 +502,7 @@ int main() {
    ```
 2. 目前的嵌入式版本还不支持在 `conn.execute()` 函数中使用 Dolphindb SQL 语句直接对内存OLTP表对象进行操作。需要写成 ``objByName(`OLTPtableName)``的形式，用表名通过 `objByName()`函数获取可操作的表对象。
 
-.dos 脚本如下
+DolphinDB 脚本（.dos）如下：
 
 ```
 // 算子
@@ -534,6 +535,7 @@ def cleanEnvironment(rseName="reactiveDemo") {
     dropStreamEngine(rseName)
 }
 ```
+
 - 完整代码见：[streamEngineDemo](demo/streamEngineDemo/main.cpp)
 - CMakeLists 见：[streamEngineDemo_CMakeLists](demo/streamEngineDemo/CMakeLists.txt)
 - 编译方法见：[README.demo](README.demo.md)
@@ -552,7 +554,7 @@ def cleanEnvironment(rseName="reactiveDemo") {
 7. 清理环境（取消流表订阅、释放流表、释放流引擎、释放内存 OLTP 表）
 8. 关闭运行时
 
-C++ 代码如下
+C++ 代码如下：
 
 ```cpp
 int main() {
@@ -600,24 +602,24 @@ int main() {
         std::string code = "produceData("+ std::to_string(BLK_SIZE) +")";
         conn.execute(code);
         std::cout << code << std::endl;
-      
+    
         code = "exec count(*) from outStream";
         auto tableSize = conn.execute(code);
         std::cout << code << std::endl;
         std::cout << tableSize->getString() << std::endl;
-      
+    
         sleep(1);
-      
+    
         code = "exec count(*) from objByName(`"+tableName +")";
         tableSize = conn.execute(code);
         std::cout << code << std::endl;
         std::cout << tableSize->getString() << std::endl;
-      
+    
         code = "select * from objByName(`"+tableName +") order by time limit " + std::to_string(start) + ", " + std::to_string(BLK_SIZE);
         resultTable = conn.execute(code);
         std::cout << code << std::endl;
         std::cout << resultTable->getString() << std::endl;
-      
+    
         sleep(1);
     }
   
@@ -631,8 +633,7 @@ int main() {
 }
 ```
 
-
-.dos 脚本如下
+DolphinDB 脚本（.dos）如下：
 
 ```
 // 算子
@@ -685,7 +686,7 @@ def cleanEnvironment(streamTableName=`outStream, subActName="streamToOLTP", rseN
 
 ### 调用自定义函数和内置函数
 
-以下的例子调用了自定义函数和内置函数：
+以下的 C++ 代码例子调用了自定义函数和内置函数：
 
 ```cpp
 int main()
@@ -716,11 +717,14 @@ int main()
     DolphinDBLib::finalizeRuntime();
 }
 ```
+
 - 完整代码见：[functionDemo](demo/functionDemo/main.cpp)
 - CMakeLists 见：[functionDemo_CMakeLists](demo/functionDemo/CMakeLists.txt)
 - 编译方法见：[README.demo](README.demo.md)
-  
+
 ### 智能指针（Smart Pointer）
+
+C++ 代码如下：
 
 ```cpp
 int main()
@@ -978,6 +982,7 @@ void testDictionary(DB &db)
   return;
 }
 ```
+
 - 完整代码见：[objectDemo](demo/objectDemo/main.cpp)
 - CMakeLists 见：[objectDemo_CMakelists](demo/objectDemo/CMakeLists.txt)
 - 编译方法见：[README.demo](README.demo.md)
@@ -985,6 +990,8 @@ void testDictionary(DB &db)
 ### 数据写入、插入、查询、更新与删除
 
 以下例子及行间注释解释了如何通过脚本对 Swordfish 进行数据写入、插入、查询、更新和删除操作。
+
+C++ 代码如下：
 
 ```cpp
 int main(int argc, char* argv[])
@@ -1041,15 +1048,22 @@ int main(int argc, char* argv[])
 
     // 插入数据
     {
+        // 初始化数据
         std::vector<int> colIntValue { 17, 37, 67 };
         std::vector<char> colBoolValue { 0, 0, 0 };
         std::vector<long long> colLongValue { 199, 224, 238 };
+      
+        // 创建向量
         VectorSP colInt = Util::createVector(DT_INT, 0, 3);
         VectorSP colBool = Util::createVector(DT_BOOL, 0, 3);
         VectorSP colLong = Util::createVector(DT_LONG, 0, 3);
+      
+        // 向向量中添加数据
         colInt->appendInt((int*)(colIntValue.data()), 3);
         colBool->appendBool((char*)(colBoolValue.data()), 3);
         colLong->appendLong((long long*)(colLongValue.data()), 3);
+      
+        // 创建列名和列向量的vector，创建表
         std::vector<string> colNames { "col_int", "col_bool", "col_long" };
         std::vector<ConstantSP> cols { colInt, colBool, colLong };
         TableSP insertTable = Util::createTable(colNames, cols);
@@ -1069,9 +1083,12 @@ int main(int argc, char* argv[])
 
         const int queryRowsMax = 5;
         const size_t bytes_per_row = computeBytes(colDesc, 100);
+      
+        // 创建查询结果的缓存
         RawTableBufferGenerator queryGen(queryRowsMax, bytes_per_row);
         const RawTableBuffer& resultBuffer = queryGen.get();
 
+        // 查询并输出结果
         size_t queryRows = conn.query(tableName, queryCols, filter, resultBuffer);
         std::cout << "============= low level query data ==============\n";
         RawTupleBufferReader reader;
@@ -1092,6 +1109,8 @@ int main(int argc, char* argv[])
         string filterTxt = "col_long >= 211, col_bool = false";
         vector<ObjectSP> filter = conn.makeFilters(filterTxt);
         vector<string> queryCols { "col_int", "col_bool", "col_long" };
+      
+        // 执行查询并输出结果
         TableSP tableResult = conn.query(tableName, queryCols, filter);
         std::cout << "================== query data ===================\n";
         std::cout << tableResult->getString() << "\n";
@@ -1102,10 +1121,15 @@ int main(int argc, char* argv[])
     {
         string filterTxt = "col_long >= 211, col_bool = false";
         string updateDefsTxt = "col_int = col_int*10, col_bool = true";
+      
+        // 创建过滤器和更新列的定义
         vector<ObjectSP> filter = conn.makeFilters(filterTxt);
         vector<ColumnDefSP> columnUpdateDefs = conn.makeColumnUpdateDefs(updateDefsTxt);
+      
+        // 执行更新操作并输出结果
         size_t changeRows = conn.update(tableName, columnUpdateDefs, filter);
         auto obj = conn.execute("select * from test_table");
+      
         std::cout << "================== update data ==================\n";
         std::cout << "changed rows count: " << changeRows << "\n";
         std::cout << obj->getString() << "\n";
@@ -1114,9 +1138,14 @@ int main(int argc, char* argv[])
     // 删除数据
     {
         string filterTxt = "col_long >= 213, col_int > 5";
+      
+        // 创建过滤器
         vector<ObjectSP> filter = conn.makeFilters(filterTxt);
+      
+        // 执行删除操作并输出结果
         size_t removeRows = conn.remove(tableName, filter);
         auto obj = conn.execute("select * from test_table");
+      
         std::cout << "================== delete data ==================\n";
         std::cout << "removed rows count: " << removeRows << "\n";
         std::cout << obj->getString() << "\n";
@@ -1124,7 +1153,8 @@ int main(int argc, char* argv[])
 
     // 交易过程，过程中只有其中一个交易结果数据会提交
     {
-        auto transaction1 = [&conn, &tableName]() {
+    	// 定义两个交易函数
+    	auto transaction1 = [&conn, &tableName]() {
             if (conn.isInActiveTransactionContext()) {
                 return;
             }
@@ -1139,9 +1169,9 @@ int main(int argc, char* argv[])
                 changeRows = conn.update(tableName, columnUpdateDefs, filter);
             } while (changeRows > 0);
             conn.commit();
-        };
+    	};
 
-        auto transaction2 = [&conn, &tableName]() {
+    	auto transaction2 = [&conn, &tableName]() {
             if (conn.isInActiveTransactionContext()) {
                 return;
             }
@@ -1200,19 +1230,238 @@ int main(int argc, char* argv[])
 - CMakeLists 见：[crudDemo_CMakelists](demo/crudDemo/CMakeLists.txt)
 - 编译方法见：[README.demo](README.demo.md)
 
+### 查看订单簿的实时变化
+
+以下例子展示了一个金融交易场景中的订单簿使用场景，用于查看订单簿的实时变化。其主要操作如下：
+
+1. 创建一个数据库并运行一个本地路径下的.dos文件。
+2. 初始化DolphinDBLib运行时
+3. 使用DBOption选项创建一个名为"test_db"的数据库
+4. 创建一个Connection对象和一个session对象，用于与数据库交互。
+5. 在本地路径下运行一个名为"orderbookDemo.dos"的文件，并检查是否成功运行。如果未成功运行，则会抛出一个RuntimeException异常。
+6. 代码会执行一个SQL查询，返回一个ConstantSP对象，并将其打印到控制台上。
+7. 终止DolphinDBLib运行时。
+
+C++ 代码如下：
+
+```cpp
+#include "Swordfish.h"  // 包含头文件Swordfish.h
+
+#include <memory>  // 包含头文件memory
+
+using oltp::Connection;  // 使用命名空间oltp中的Connection
+using oltp::DB;  // 使用命名空间oltp中的DB
+using std::make_shared;  // 使用std命名空间中的make_shared
+using std::shared_ptr;  // 使用std命名空间中的shared_ptr
+
+int main() {  
+
+    DolphinDBLib::initializeRuntime();  // 初始化DolphinDBLib运行时
+
+    oltp::DBOption option;  // 创建一个DBOption对象option
+    shared_ptr<DB> db = make_shared<DB>("test_db", option);  // 创建一个名为"test_db"的数据库，并使用make_shared创建一个shared_ptr指针db指向该数据库
+    Connection conn(*db);  // 创建一个Connection对象conn，并将指向db的shared_ptr指针解引用作为参数传入conn的构造函数中
+    auto session = conn.getCurrentSession();  // 创建一个session对象，并将Connection对象conn的getCurrentSession()方法返回值赋值给session
+
+    bool success = session->run("../../demo/orderbookDemo/orderbookDemo.dos");  // 在本地路径下运行名为"orderbookDemo.dos"的文件，并将结果赋值给success
+    if(!success) {  // 如果运行失败
+        throw RuntimeException(session->getLastErrorMessage());  // 抛出RuntimeException异常，异常信息为session的getLastErrorMessage()方法返回值
+    }
+
+    ConstantSP cnt = conn.execute("exec count(*) from outTable");  // 执行SQL查询语句"exec count(*) from outTable"，并将结果赋值给ConstantSP对象cnt
+    std::cout << cnt->getString() << std::endl;  // 将ConstantSP对象cnt转换为字符串并打印到控制台上
+
+    TableSP res = conn.execute("select top 20 * from outTable");  // 执行SQL查询语句"select top 20 * from outTable"，并将结果赋值给TableSP对象res
+    std::cout << res->getString() << std::endl;  // 将TableSP对象res转换为字符串并打印到控制台上
+
+    DolphinDBLib::finalizeRuntime();  // 终止DolphinDBLib运行时
+
+    return 0;  // 返回0表示程序执行成功
+}
+```
+
+DolphinDB 脚本（.dos）如下：
+
+```
+/*
+ *  功能：批计算合成10支股票全天 1s 频率行情数据
+ *  最近一次更新日期：2023.06.06
+ */
+
+// 登录
+login("admin", "123456")
+
+// 创建引擎参数outputTable，即指定输出表
+suffix = string(1..10)
+colNames = `SecurityID`timestamp`lastAppSeqNum`tradingPhaseCode`modified`turnover`volume`tradeNum`totalTurnover`totalVolume`totalTradeNum`lastPx`highPx`lowPx`ask`bid`askVol`bidVol`preClosePx`invalid  join ("bids" + suffix) join ("bidVolumes" + suffix) join ("bidOrderNums" + suffix) join ("asks" + suffix)  join ("askVolumes" + suffix) join ("askOrderNums" + suffix) 
+colTypes = [SYMBOL,TIMESTAMP,LONG,INT,BOOL,DOUBLE,LONG,INT,DOUBLE,LONG,INT,DOUBLE,DOUBLE,DOUBLE,DOUBLE,DOUBLE,LONG,LONG,DOUBLE,BOOL] join take(DOUBLE, 10) join take(LONG, 10) join take(INT, 10) join take(DOUBLE, 10) join take(LONG, 10) join take(INT, 10) 
+outTable = table(10000000:0, colNames, colTypes)
+
+// 创建引擎参数dummyTable，即指定输入表的表结构
+colNames = `SecurityID`Date`Time`SecurityIDSource`SecurityType`Index`SourceType`Type`Price`Qty`BSFlag`BuyNo`SellNo`ApplSeqNum`ChannelNo
+colTypes = [SYMBOL, DATE, TIME, SYMBOL, SYMBOL, LONG, INT, INT, LONG, LONG, INT, LONG, LONG, LONG, INT]
+dummyOrderStream = table(1:0, colNames, colTypes)
+
+// 创建引擎参数inputColMap，即指定输入表各字段的含义
+inputColMap = dict(`codeColumn`timeColumn`typeColumn`priceColumn`qtyColumn`buyOrderColumn`sellOrderColumn`sideColumn`msgTypeColumn`seqColumn, `SecurityID`Time`Type`Price`Qty`BuyNo`SellNo`BSFlag`SourceType`ApplSeqNum)
+
+// 创建引擎参数prevClose，即昨日收盘价，prevClose不影响最终的输出结果中除昨日收盘价以外的其他字段
+prevClose = dict(`000587.SZ`002694.SZ`002822.SZ`000683.SZ`301063.SZ`300459.SZ`300057.SZ`300593.SZ`301035.SZ`300765.SZ, [1.66, 6.56, 6.10, 8.47, 38.10, 5.34, 9.14, 48.81, 60.04, 16.52])
+
+// 释放已有的引擎
+try { dropStreamEngine("demo") } catch(ex) { print(ex) }  
+// 定义引擎，每1s计算输出深交所股票10档买卖盘口
+engine = createOrderBookSnapshotEngine(name="demo", exchange="XSHE", orderbookDepth=10, intervalInMilli = 1000, date=2022.01.10, startTime=09:15:00.000, prevClose=prevClose, dummyTable=dummyOrderStream, outputTable=outTable, inputColMap=inputColMap)
+
+// 从server目录下的csv文件加载输入数据至内存，输入数据为逐笔成交和逐笔委托数据合成的一张表
+filePath = "../../demo/orderbookDemo/orderbookDemoInput.csv"
+colNames = `SecurityID`Date`Time`SecurityIDSource`SecurityType`Index`SourceType`Type`Price`Qty`BSFlag`BuyNo`SellNo`ApplSeqNum`ChannelNo
+colTypes = [SYMBOL, DATE, TIME, SYMBOL, SYMBOL, LONG, INT, INT, LONG, LONG, INT, LONG, LONG, LONG, INT]
+orderTrade = table(1:0, colNames, colTypes)
+orderTrade.append!(select * from loadText(filePath) order by Time)
+
+// 10支股票的逐笔数据批量注入快照合成引擎
+engine.append!(orderTrade)
+```
+
+
+* 完整代码见：[orderbookDemo](demo/orderbookDemo/main.cpp)
+* CMakeLists 见：[orderbookDemo_CMakelists](demo/orderbookDemo/CMakeLists.txt)
+* 编译方法见：[README.demo](README.demo.md)
+* .dos脚本见：[orderbookDemo.dos](demo/orderbookDemo/orderbookDemo.dos)
+* 模拟数据集见：[orderbookDemoInput](demo/orderbookDemo/orderbookDemoInput.csv)
+
+
+### 基于逐笔成交行情数据实时合成分钟K线
+
+以下例子模拟了在金融交易场景中根据逐笔成交行情数据合成分钟K线图的场景。其主要操作如下：
+
+1. 初始化DolphinDB运行时环境，创建并打开一个名为"test_db"的数据库。
+2. 获取当前连接会话的一个Connection对象和session对象，用于之后运行.dos脚本及调用函数。
+3. 运行streamFunc.dos脚本，调用脚本中定义的函数，创建流表、内存表；加载数据，并创建时间序列聚合流引擎和流表间的订阅。
+4. 定义两个lambda函数（writeData和readData）作为线程函数，在两个子线程上分别向流引擎中写入数据和从结果表中读取数据。
+5. 创建两个线程t1和t2，并等待线程结束。
+6. 在连接上执行cleanEnv()函数，清理环境，并终止DolphinDB运行时环境。
+
+C++ 代码如下：
+
+```cpp
+// 导入Swordfish库
+#include "Swordfish.h" 
+
+// 导入C++标准库
+#include <iostream>
+#include <string>
+#include <thread>
+
+using std::shared_ptr;
+using std::make_shared;
+
+using oltp::DB;
+using oltp::Connection;
+
+
+int main() {
+    // 初始化运行时环境
+    DolphinDBLib::initializeRuntime();
+  
+    // 打开/创建名为test_db的数据库，并获取连接会话对象
+    oltp::DBOption option;
+    shared_ptr<DB> db = make_shared<DB>("test_db", option);
+    Connection conn(*db);
+    auto session = conn.getCurrentSession();
+  
+    const string inputTableName = "trade";
+    const string outputTableName= "aggrStream";
+    const string resultTableName = "ohlcStream";
+  
+    // 在当前连接运行streamFunc.dos脚本文件，定义之后会用到的函数
+    bool success = session->run("../../demo/ohlcDemo/streamFunc.dos");
+    if(!success) {
+        throw RuntimeException(session->getLastErrorMessage());
+    }
+  
+    // 在当前连接运行定义好的函数，创建内存表并加载数据，创建流表，创建时序聚合流数据引擎并订阅流表
+    conn.execute("loadInputTable(tableName=`"+ inputTableName +")");
+    conn.execute("createEngineOutputStream(tableName=`"+ outputTableName +")");
+    conn.execute("createResultStream(tableName=`" + resultTableName + ")");
+    conn.execute("createTsEngine(outputTableName=`" + outputTableName + ", inputTableName=`" + inputTableName + ")");
+    conn.execute("subscribeStreamTable(outputTableName=`"+ resultTableName + ", inputTableName=`" + outputTableName + ")");
+  
+    std::cout << "Initializing..." << std::endl;
+  
+    // 向流引擎写数据的线程函数
+    auto writeData = [ &inputTableName, &db]() {
+        // 在线程上创建新的数据库连接，并运行streamFunc.dos脚本定义函数
+        Connection conn1(*db);
+        auto session = conn1.getCurrentSession();
+        session->run("../../demo/ohlcDemo/streamFunc.dos");
+    
+        // 每隔一秒从内存表取1000条数据推入流引擎计算K线
+        std::string code = "exec count(*) from objByName(`"+ inputTableName +")";
+        int inputSize = conn1.execute(code)->getInt();
+        int BLK_SIZE = 1000;
+        for(int start = 0; start < inputSize; start += BLK_SIZE) {
+            std::string cmd = "insertToEngine("+ std::to_string(start) + ", " + std::to_string(BLK_SIZE) +")";
+            conn1.execute(cmd);
+            sleep(1);
+        }
+    };
+  
+    // 读取流引擎输出的线程函数
+    auto readData = [ &resultTableName, &db]() {
+        // 在线程上创建新的数据库连接
+        Connection conn2(*db);
+    
+        // 每隔两秒，从结果流表中读10条流引擎输出推送过来的数据
+        int start = 0;
+        int end = 2300;
+        int currentLen = 0;
+        while(start <= end) {
+            currentLen = conn2.execute("exec count(*) from objByName(`"+ resultTableName +", true)")->getInt();
+            if(currentLen >= start+10) {
+                auto data = conn2.execute("select * from objByName(`"+ resultTableName +", true) limit " + std::to_string(start) + ", 10");
+                std::cout << data->getString() << std::endl;
+                start += 10;
+            } 
+            sleep(2);
+        }
+    };
+  
+    // 启动读写线程，并等待线程运行结束
+    std::thread t1(writeData);
+    std::thread t2(readData);
+    t1.join();
+    t2.join();
+  
+    // 清理环境，结束运行时环境
+    conn.execute("cleanEnv()");
+    DolphinDBLib::finalizeRuntime();
+  
+    return 0;
+}
+```
+
+
+* 完整代码见：[ohlcDemo](demo/ohlcDemo/main.cpp)
+* CMakeLists 见：[ohlcDemo_CMakelists](demo/ohlcDemo/CMakeLists.txt)
+* 编译方法见：[README.demo](README.demo.md)
+* .dos脚本见：[streamFunc.dos](demo/ohlcDemo/streamFunc.dos)
+* 模拟数据集见：[trade.zip](demo/ohlcDemo/trade.zip)
+
 ## 操作与维护
 
 ### 错误管理
 
 Swordfish 中可能出现的错误信息及解决方法如下：
 
-| **错误信息**                                                              | **错误原因**                                                                                                                                         | **解决办法**                                                         |
-|---------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
-| “DolphinDB runtime initialization failed, please check the info log file” | `DolphinDBLib::initializeRuntime()` 初始化 DolphinDB 运行时环境失败                                                                                  | 检查 log 文件, 比如*dolphindb.log*                                   |
-| "DolphinDB runtime has been destroyed"                                    | 已经调用 `DolphinDBLib::finalizeRuntime()` 销毁了 DolphinDB 运行时环境, 无法再次初始化                                                               |                                                                      |
-| “Failed to acquire db-file-lock: locked by other“                         | 该数据库已经被其他进程/线程以读写模式打开                                                                                                            |                                                                      |
-| “Failed to acquire recover-file-lock, retry later”                        | 发生在以只读模式打开数据库时。由于其他进程/线程也正在打开这个数据库，并且正在进行 recover。等待大约 20 秒后，如果 recover 仍未结束，就会报这个错误。 | 在同一个进程中，尽量不要试图在多个线程里以只读模式打开同一个数据库。 |
-| “The feature of publish is not enabled. RefId:S00001”                     | 运行streamEngineRunDemo前发布端没有指定可以连接它进行订阅的节点数量，故不具备发布功能。                                                              | 在编译后可执行文件所在的`/build/bin`路径下新建一个*dolphindb.cfg*配置文件，在其中添加`maxPubConnections`配置参数，并为其赋值。例如：`maxPubConnections=64` 。                          |
+| **错误信息**                                                          | **错误原因**                                                                                                                                   | **解决办法**                                                                                                                                                      |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| “DolphinDB runtime initialization failed, please check the info log file” | `DolphinDBLib::initializeRuntime()` 初始化 DolphinDB 运行时环境失败                                                                                | 检查 log 文件, 比如*dolphindb.log*                                                                                                                                    |
+| "DolphinDB runtime has been destroyed"                                      | 已经调用 `DolphinDBLib::finalizeRuntime()` 销毁了 DolphinDB 运行时环境, 无法再次初始化                                                             |                                                                                                                                                                         |
+| “Failed to acquire db-file-lock: locked by other“                         | 该数据库已经被其他进程/线程以读写模式打开                                                                                                            |                                                                                                                                                                         |
+| “Failed to acquire recover-file-lock, retry later”                        | 发生在以只读模式打开数据库时。由于其他进程/线程也正在打开这个数据库，并且正在进行 recover。等待大约 20 秒后，如果 recover 仍未结束，就会报这个错误。 | 在同一个进程中，尽量不要试图在多个线程里以只读模式打开同一个数据库。                                                                                                    |
+| “The feature of publish is not enabled. RefId:S00001”                     | 运行streamEngineRunDemo前发布端没有指定可以连接它进行订阅的节点数量，故不具备发布功能。                                                              | 在编译后可执行文件所在的 `/build/bin`路径下新建一个*dolphindb.cfg*配置文件，在其中添加 `maxPubConnections`配置参数，并为其赋值。例如：`maxPubConnections=64` 。 |
 
 ### 配置管理
 
