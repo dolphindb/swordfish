@@ -61,7 +61,7 @@ private:
     typedef SmartPointer<JobContainer> JobContainerSP;
 
 public:
-    TaskManager() : taskQueues_(MAX_JOB_PRIORITY + 1), nelts_(0) {}
+    TaskManager(bool hardLimit = false) : taskQueues_(MAX_JOB_PRIORITY + 1), nelts_(0), hardLimit_(hardLimit) {}
     TaskManager(const TaskManager & rhs)=delete;
     TaskManager(const TaskManager && rhs)=delete;
 
@@ -72,10 +72,10 @@ public:
 
         LockGuard<Mutex> g(&mtx_);
         if (priority > MAX_JOB_PRIORITY || priority < MIN_JOB_PRIORITY) {
-            LOG_WARN("Task priority must be in the range of [" + std::to_string(MIN_JOB_PRIORITY) + "," + std::to_string(MAX_JOB_PRIORITY) + "]");
+            LOG_WARN("Task priority must be in the range of [", MIN_JOB_PRIORITY, ",", MAX_JOB_PRIORITY, "]");
         }
         if (parallelism > MAX_PARALLELISM || parallelism < MIN_PARALLELISM) {
-            LOG_WARN("Task parallelism must be in the range of [" + std::to_string(MIN_PARALLELISM) + "," + std::to_string(MAX_PARALLELISM) + "]");
+            LOG_WARN("Task parallelism must be in the range of [", MIN_PARALLELISM, ",", MAX_PARALLELISM, "]");
         }
 
         auto it = jobCurrentPriorityMap_.find(rootJobId);
@@ -94,7 +94,7 @@ public:
 				 return;
 			}
 			else{
-				LOG_WARN("The job [" + rootJobId.getString() + "] exists in jobCurrentPriorityMap, but not in corresponding job queue [priority=" + std::to_string(it->second) + "]");
+				LOG_WARN("The job [", rootJobId.getString(), "] exists in jobCurrentPriorityMap, but not in corresponding job queue [priority=", it->second, "]");
 				jobCurrentPriorityMap_.erase(rootJobId);
 			}
         }
@@ -115,9 +115,14 @@ public:
 		JobContainerSP newJob = new JobContainer(rootJobId, sessionId, remoteIP, remotePort, userId, type, desc, priority, parallelism, fixedPriority);
 		newJob->tasks.push_back(item);
 		jobCurrentPriorityMap_[rootJobId] = priority;
-		nelts_++;
 		newJob->totalTaskCount++;
-		addJobToQueue(queue, newJob);
+		try {
+			addJobToQueue(queue, newJob);
+		} catch (...) {
+			jobCurrentPriorityMap_.erase(rootJobId);
+			throw;
+		}
+		nelts_++;
         cv_.notify();
     }
 
@@ -202,7 +207,7 @@ public:
     int cancel(const Guid& rootJobId) {
         LockGuard<Mutex> g(&mtx_);
 
-        LOG_INFO("Received cancel request: " + rootJobId.getString());
+        LOG_INFO("Received cancel request: ", rootJobId.getString());
         auto it = jobCurrentPriorityMap_.find(rootJobId);
         if (it == jobCurrentPriorityMap_.end()) {
             return 0;
@@ -210,7 +215,7 @@ public:
         int priority = it->second;
         auto job = findJobById(taskQueues_[priority], rootJobId);
         if(job.isNull()){
-    	   LOG_WARN("The job [" + rootJobId.getString() + "] exists in jobCurrentPriorityMap, but not in corresponding job queue [priority=" + std::to_string(priority) + "]");
+    	   LOG_WARN("The job [", rootJobId.getString(), "] exists in jobCurrentPriorityMap, but not in corresponding job queue [priority=", priority, "]");
     	   jobCurrentPriorityMap_.erase(rootJobId);
     	   return 0;
         }
@@ -229,7 +234,7 @@ public:
         	}
         	++item;
         }
-        LOG_INFO("Cancelled " + std::to_string(cancelledTasks) + " task(s). Notified " + std::to_string(runningTasks) + " running task(s) to cancel.");
+        LOG_INFO("Cancelled ", cancelledTasks, " task(s). Notified ", runningTasks, " running task(s) to cancel.");
         return runningTasks;
     }
 
@@ -289,10 +294,18 @@ private:
             auto & queue = taskQueues_[p];
             for (unsigned int j = 0; j < queue.size(); ++j) {
                 auto job = queue[j];
-                if (job->quotaLeft > 0 && job->tasks.empty() == false) {
-                    resJob = job;
-                    return true;
-                }
+				if (!hardLimit_) {
+					if (job->quotaLeft > 0 && job->tasks.empty() == false) {
+						resJob = job;
+						return true;
+					}
+				}
+				else {
+					if (job->quotaLeft > 0 && job->tasks.empty() == false && job->runningTaskCount < job->quota) {
+						resJob = job;
+						return true;
+					}
+				}
             }
         }
         return false;
@@ -304,10 +317,18 @@ private:
             auto & queue = taskQueues_[p];
             for (unsigned int j = 0; j < queue.size(); ++j) {
                 auto job = queue[j];
-                if (!job->tasks.empty()) {
-                    resJob = job;
-                    return true;
-                }
+				if (!hardLimit_) {
+					if (!job->tasks.empty()) {
+						resJob = job;
+						return true;
+					}
+				}
+				else {
+					if (job->tasks.empty() == false && job->runningTaskCount < job->quota) {
+						resJob = job;
+						return true;
+					}
+				}
             }
         }
         return false;
@@ -331,16 +352,16 @@ private:
         auto & rootJobId = job->rootJobId;
         if (currentPriority>0 && hasLowerPriorityPendingTask(currentPriority)) {
             removeJobFromQueue(queue, rootJobId);
-            addJobToQueue(taskQueues_[currentPriority - 1], job);
+            addJobToQueueNoThrow(taskQueues_[currentPriority - 1], job);
             jobCurrentPriorityMap_[rootJobId] = currentPriority - 1;
-            LOG("Lower the priority of job " + rootJobId.getString() + " to " + std::to_string(currentPriority - 1));
+            LOG("Lower the priority of job ", rootJobId.getString(), " to ", currentPriority - 1);
             return 1;
         } else if (currentPriority < job->priority){
             removeJobFromQueue(queue, rootJobId);
             int newPriority = currentPriority <= 0 ? job->priority : currentPriority + 1;
-            addJobToQueue(taskQueues_[newPriority], job);
+            addJobToQueueNoThrow(taskQueues_[newPriority], job);
             jobCurrentPriorityMap_[rootJobId] = newPriority;
-            LOG("Upgrade the priority of job " + rootJobId.getString() + " to " + std::to_string(newPriority));
+            LOG("Upgrade the priority of job ", rootJobId.getString(), " to ", newPriority);
             return 2;
         } else {
             return 0;
@@ -372,6 +393,21 @@ private:
     void addJobToQueue(std::deque<JobContainerSP> & queue, const JobContainerSP& job) {
         queue.push_back(job);
     }
+
+	void addJobToQueueNoThrow(std::deque<JobContainerSP> & queue, const JobContainerSP& job) noexcept {
+		while (true) {
+			try {
+				queue.push_back(job);
+				break;
+			} catch (const std::exception& ex) {
+				LOG_WARN("TaskManager failed to addJobToQueue with excetion : ", ex.what());
+				Thread::sleep(1000);
+			} catch (...) {
+				LOG_WARN("TaskManager failed to addJobToQueue with unknown excetion.");
+				Thread::sleep(1000);
+			}
+		}
+	}
 
 private:
     struct JobContainer {
@@ -443,6 +479,7 @@ private:
     Mutex mtx_;
     ConditionalVariable cv_;
     int nelts_;
+	bool hardLimit_;
 };
 
 class QueryMonitor{

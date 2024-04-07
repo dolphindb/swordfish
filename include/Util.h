@@ -96,7 +96,13 @@ public:
 	static Table* createTable(const vector<string>& colNames, const vector<ConstantSP>& cols);
 	static TableSP reloadExpiredTable(Heap* heap, const TableSP& tbl);
 	static Set* createSet(DATA_TYPE keyType, const SymbolBaseSP& symbolBase, INDEX capacity);
-	static Dictionary* createDictionary(DATA_TYPE keyType, const SymbolBaseSP& keyBase, DATA_TYPE valueType, const SymbolBaseSP& valueBase, bool isOrdered=true);
+	/**
+	 * @param keyExtraParam Extra information for key type, e.g., scale for decimal type.
+	 * @param valueExtraParam Extra information for value type, e.g., scale for decimal type.
+	 */
+	static Dictionary* createDictionary(DATA_TYPE keyType, const SymbolBaseSP& keyBase, DATA_TYPE valueType,
+										const SymbolBaseSP& valueBase, bool isOrdered = true, int keyExtraParam = 0,
+										int valueExtraParam = 0);
 	static Vector* createVector(DATA_TYPE type, INDEX size, INDEX capacity=0, bool fast=true, int extraParam=0,
 		void* data=0, void** dataSegment=0, int segmentSizeInBit=0, bool containNull=false);
 	static Vector* createSymbolVector(const SymbolBaseSP& symbolBase, INDEX size, INDEX capacity=0, bool fast=true,
@@ -105,6 +111,8 @@ public:
 	static Vector* createRepeatingVector(const ConstantSP& scalar, INDEX length, int extraParam=0);
 	static Vector* createRepeatingSymbolVector(const ConstantSP& scalar, INDEX length, const SymbolBaseSP& symbolBase);
 	static Vector* createSubVector(const VectorSP& source, INDEX offset, INDEX length);
+	static Vector* createArrayVector(DATA_TYPE type, INDEX size, INDEX valueSize = 0, INDEX capacity = 0,
+									INDEX valueCapacity = 0, bool fastMode = true, int extraParam = 0);
 	static Vector* createMatrix(DATA_TYPE type, int cols, int rows, int colCapacity,int extraParam=0,
 			void* data=0, void** dataSegment=0, int segmentSizeInBit=0, bool containNull=false);
 	static Vector* createSymbolMatrix(const SymbolBaseSP& symbolBase, int cols, int rows, int colCapacity, int* data=0, bool containNull=false);
@@ -121,6 +129,7 @@ public:
 	static VectorSP createInverseIndexVector(const VectorSP& index, INDEX length);
 	static Constant* createConstant(DATA_TYPE dataType, int extraParam = 0);
 	static Constant* createNullConstant(DATA_TYPE dataType, int extraParam = 0);
+	static VectorSP prepareCleanDoubleVector(const VectorSP& x, int isFastMode);
 
 	static DataInputStreamSP createBlockFileInputStream(const string& filename, int devId, long long fileLength, int bufSize, long long offset, long long length);
 	static Constant* createResource(long long handle, const string& desc, const FunctionDefSP& onClose, Session* session);
@@ -348,12 +357,23 @@ public:
 	static int rand(int x){ return (*Util::m1)() % x;}
 	static unsigned int checksum(FILE* fp, long long offset, long long len);
 
+	/**
+	 * @brief Get the current license type of server
+	 *
+	 * @return One of 'free', 'commercial' or 'trial'
+	 */
+	static string getLicenseType();
+
 private:
 	static bool readScriptFile(const string& parentPath,const string& filename, unordered_set<string> scriptAlias, vector<string>& lines, string& errMsg);
 };
 
 inline ConstantSP evaluateObject(const ObjectSP& obj, Heap* pHeap) {
 	return obj->isConstant() && !((Constant*)obj.get())->isStatic() ? ConstantSP(obj) : obj->getReference(pHeap);
+}
+
+inline ConstantSP copyIfNecessary(const ConstantSP& obj) {
+	return (!obj->isTemporary() && obj->copyable()) ? obj->getValue() : obj;
 }
 
 inline IO_ERR serializeCode(Heap* pHeap, const ObjectSP& obj, const ByteArrayCodeBufferSP& buffer){

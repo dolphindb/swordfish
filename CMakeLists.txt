@@ -29,8 +29,8 @@ add_compile_options(
     -g -O0  # debug build
     -Wl,-rpath,${PROJECT_SOURCE_DIR}/lib/abi_0
 )
-include_directories( ${PROJECT_SOURCE_DIR}/include )
-link_directories( ${PROJECT_SOURCE_DIR}/lib/abi_0 )
+include_directories( ${PROJECT_SOURCE_DIR}/swordfish/include )
+link_directories( ${PROJECT_SOURCE_DIR}/swordfish/lib/abi_0 )
 
 
 #######################################################################################################################

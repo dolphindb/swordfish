@@ -228,6 +228,30 @@ public:
 		}
 	}
 
+	void unlock() {
+		if (res_ != NULL) {
+			if (exclusive_) {
+				res_->releaseWrite();
+			} else {
+				res_->releaseRead();
+			}
+			res_ = NULL;
+		}
+	}
+
+	void relock(T* res, bool exclusive) {
+		res_ = res;
+		exclusive_ = exclusive;
+		if (res != NULL) {
+			if(exclusive_) {
+				res_->acquireWrite();
+			}
+			else {
+				res_->acquireRead();
+			}
+		}
+	}
+
 	RWLockGuard(const RWLockGuard &) = delete;
 	RWLockGuard& operator=(const RWLockGuard &) = delete;
 
@@ -466,7 +490,14 @@ public:
 			empty_.wait(mutex_);
 		int count = std::min((int)items_.size(), n);
 		while(count>0){
-			container.push_back(items_.front());
+			do {
+				try {
+					container.push_back(items_.front());
+					break;
+				} catch (...) {
+					sleep(500);
+				}
+			} while (true);
 			items_.pop();
 			--count;
 		}
@@ -501,16 +532,52 @@ public:
 	template<class Y>
 	void removeItem(Y func){
 		LockGuard<Mutex> guard(&mutex_);
-		std::queue<T> newItem;
 		if(items_.empty())
 			return;
+		std::queue<T> newItem;
 		while(!items_.empty()){
-			T item = items_.front();
+			T item;
+			do {
+				try {
+					item = items_.front();
+					break;
+				} catch (...) {
+					sleep(500);
+				}
+			} while (true);
 			items_.pop();
-			if(!func(item))
-				newItem.push(item);
+
+			bool remove = false;
+			try {
+				if (func(item)) {
+					remove = true;
+				}
+			} catch (...) {
+				// ignore
+			}
+			if (!remove) {
+				do {
+					try {
+						newItem.push(item);
+						break;
+					} catch (...) {
+						sleep(500);
+					}
+				} while (true);
+			}
 		}
 		items_.swap(newItem);
+	}
+
+private:
+	void sleep(int milliSeconds) {
+		if (milliSeconds <= 0)
+			return;
+#ifdef WINDOWS
+		::Sleep(milliSeconds);
+#else
+		usleep(1000 * milliSeconds);
+#endif
 	}
 
 private:

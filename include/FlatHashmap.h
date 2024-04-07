@@ -782,7 +782,7 @@ public:
     }
 
     ~SwissTableImpl() {
-        if(size_ > 0){
+        if(capacity_ > 0){
             for (size_t i = 0; i < capacity_; ++i) {
                 if (!IsFull(ctrl_[i])){
                     continue;

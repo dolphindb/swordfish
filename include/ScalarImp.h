@@ -27,9 +27,10 @@ void initFormatters();
 
 class Void: public Constant{
 public:
-	Void(bool explicitNull = false) : Constant(DF_SCALAR, DT_VOID, NOTHING){setNothing(!explicitNull);}
-	virtual ConstantSP getInstance() const {return ConstantSP(new Void(!isNothing()));}
-	virtual ConstantSP getValue() const {return ConstantSP(new Void(!isNothing()));}
+	Void(bool explicitNull = false, bool isDefault = false);
+	inline bool isDefault() const { return isDefault_;}
+	virtual ConstantSP getInstance() const;
+	virtual ConstantSP getValue() const;
 	virtual DATA_TYPE getRawType() const { return DT_VOID;}
 	virtual string getString() const;
 	virtual string getScript() const;
@@ -157,6 +158,9 @@ public:  /// {get,set}Decimal{32,64}
 private:
 	template <typename R>
 	bool getDecimal(INDEX /*start*/, int len, int scale, R *buf) const;
+
+private:
+	bool isDefault_;
 };
 
 class ObjectPool: public Void {
@@ -547,6 +551,7 @@ public:
 	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
 	virtual bool mayContainColumnRefOrVariable() const { return false;}
 	virtual bool isLargeConstant() const { return false;}
+	IO_ERR deserialize(DataInputStream* in, INDEX indexStart, int offset, INDEX targetNumElement, INDEX& numElement, int& partial) override;
 
 private:
 	ObjectSP code_;
@@ -1215,23 +1220,26 @@ private:
 class Duration : public Int {
 public:
 	Duration(DURATION unit, int val);
+	Duration(int exchange, int val);
+	Duration(const string& exchange, int val);
 	virtual ~Duration(){}
 	virtual DATA_TYPE getRawType() const { return DT_DURATION;}
 	virtual long long getLong() const;
 	virtual string getScript() const {return getString();}
-	virtual ConstantSP getValue() const {return ConstantSP(new Duration(unit_, val_));}
-	virtual ConstantSP getInstance() const {return ConstantSP(new Duration(unit_, val_));}
-	virtual string getString() const { return toString(unit_, val_);}
+	virtual ConstantSP getValue() const;
+	virtual ConstantSP getInstance() const;
+	virtual string getString() const;
 	virtual int serialize(char* buf, int bufSize, INDEX indexStart, int offset, int& numElement, int& partial) const;
 	IO_ERR deserialize(DataInputStream* in, INDEX indexStart, int offset, INDEX targetNumElement, INDEX& numElement, int& partial);
 	DURATION getUnit() const { return unit_;}
+	string getExchangeName() const;
+	int getExchangeInt() const { return exchange_;}
 	int getDuration() const { return val_;}
 	long long toDuration(DURATION newDuration) const;
 	bool convertibleTo(DURATION to) const { return convertible(unit_, to);}
 	static bool convertible(DURATION from, DURATION to);
 	static Duration* parseDuration(const string& str);
 	static string toString(long long val);
-	static string toString(DURATION unit, int val);
 	static DURATION getDuration(DATA_TYPE type);
 	static DURATION getDuration(const string& unit);
 	virtual uint64_t hash() const;
@@ -1239,8 +1247,10 @@ public:
 
 private:
 	static const string durationSymbols_[11];
-	static const long long durationRatios_[11][11];
+	static const long long durationRatios_[12][12];
 	DURATION unit_;
+	int exchange_;
+
 };
 
 class Long: public AbstractScalar<long long>{
@@ -1529,6 +1539,8 @@ public:  /// Interface of Constant
     virtual bool isValid(INDEX start, int len, char *buf) const override;
 
     virtual bool set(INDEX index, const ConstantSP &value, INDEX valueIndex) override;
+
+    virtual void nullFill(const ConstantSP &val) override;
 
 public:  /// decimal to float
     virtual float getFloat() const override;

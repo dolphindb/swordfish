@@ -1,8 +1,3 @@
-defg avgReduce(mysum, mycount){
-	totalsum =sum(mysum).double()
-	return totalsum/sum(mycount)
-}
-
 def avgRunning(mysum, mycount): mysum\mycount
 
 defg tval(x, w){
@@ -38,6 +33,7 @@ mapr geometricMean(x){logAvg(x), count(x) -> geometricMeanReduce; copy, copy->ge
 
 mapr distinct(x){distinct(x)->distinct}
 mapr nunique(x){distinct(x)->nunique}
+mapr nunique(x, ignoreNull){distinct(x), copy(ignoreNull)->nunique}
 mapr sum(x){sum(x)->sum; cumsum}
 mapr sum2(x){sum2(x)->sum; cumsum}
 mapr sum3(x){sum3(x)->sum; cumsum}
@@ -54,6 +50,7 @@ mapr lastNot(x, exclude){lastNot(x, exclude)->lastNot}
 mapr count(x){count(x)->sum; cumsum}
 mapr size(x){size(x)->sum; cumsum}
 mapr avg(x){sum(x),count(x)->avgReduce; cumsum,cumsum->avgRunning}
+mapr mean(x){sum(x),count(x)->avgReduce; cumsum,cumsum->avgRunning}
 mapr std(x){sum(x),sum2(x),count(x)->stdReduce; cumsum,cumsum,cumsum->stdRunning}
 mapr stdp(x){sum(x),sum2(x),count(x)->stdpReduce; cumsum,cumsum,cumsum->stdpRunning}
 mapr var(x){sum(x),sum2(x),count(x)->varReduce; cumsum,cumsum,cumsum->varRunning}
@@ -68,6 +65,7 @@ mapr contextSum(x,y){contextSum(x,y)->sum; cumsum}
 mapr contextSum2(x,y){contextSum2(x,y)->sum; cumsum}
 mapr wavg(x,y){wavg(x,y),contextSum(y,x)->wavg; copy,copy->cumwavg}
 mapr covar(x,y){wsum(x,y),contextSum(x,y),contextSum(y,x),contextCount(y,x)->covarReduce; cumsum,cumsum,cumsum,cumsum->covarRunning}
+mapr cov(x,y){wsum(x,y),contextSum(x,y),contextSum(y,x),contextCount(y,x)->covarReduce; cumsum,cumsum,cumsum,cumsum->covarRunning}
 mapr corr(x,y){wsum(x,y),contextSum2(x,y),contextSum(x,y),contextSum2(y,x),contextSum(y,x),contextCount(y,x)->corrReduce; cumsum,cumsum,cumsum,cumsum,cumsum,cumsum->corrRunning}
 mapr atImax(x,y){max(x),atImax(x,y)->atImax}
 mapr atImin(x,y){min(x),atImin(x,y)->atImin}

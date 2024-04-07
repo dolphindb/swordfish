@@ -10,6 +10,18 @@
 #include <vector>
 #include <type_traits>
 
+/**
+ * @defgroup Version Version Macros
+ * @{
+ */
+/** Library major version. */
+#define SWORDFISH_VERSION_MAJOR 3
+/** Library minor version. */
+#define SWORDFISH_VERSION_MINOR 0
+/** Library patch version. */
+#define SWORDFISH_VERSION_PATCH 0
+/** @} */
+
 //==============================================================================
 // DolphinDB Runtime Utilities
 //==============================================================================
@@ -19,10 +31,14 @@ public:
     /**
      * @brief Initialize DolphinDB runtime.
      *
-     * @warning This function MUST be called before using any other API
-     * functions.
+     * @warning This function (or the following one) MUST be called before
+     * using any other API functions.
      */
     static void initializeRuntime();
+    /**
+     * @brief Initialize DolphinDB runtime with command line arguments.
+     */
+    static void initializeRuntime(int argc, char **argv);
 
     /**
      * @brief Finalize DolphinDB runtime.
@@ -33,10 +49,23 @@ public:
      */
     static void finalizeRuntime();
 
+    /** Get a C-style string representation of the library version. */
+    static const char *getVersionString();
+
     /**
-     * Create a Session, then can use it to run DolphinDB builtin functions.
+     * @brief Create a Session, then can use it to run DolphinDB builtin functions.
      */
     static SessionSP createSession();
+
+    /**
+     * @brief Run a piece of DolphinDB script.
+     */
+    static ConstantSP execute(const std::string &script);
+
+    /**
+     * @brief Run a piece of DolphinDB script in the given session.
+     */
+    static ConstantSP execute(SessionSP session, const std::string &script);
 };
 
 
@@ -348,7 +377,7 @@ public:
      */
     void requestCheckpoint(bool force, bool wait);
 
-    Session* getCurrentSession();
+    SessionSP getCurrentSession() const;
 
     /**
      * Generate filters used in SQL `where` clause, e.g., "a = 1",

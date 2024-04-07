@@ -172,9 +172,10 @@ public:
 			bool globalUpdate, const set<string>& updateTables,const set<string>& deniedUpdateTables,
 			bool globalDelete, const set<string>& deleteTables,const set<string>& deniedDeleteTables,
 			bool viewRead, const set<string>& views, const set<string>& deniedViews,
-			bool dbobjCreate, const set<string>& createDBs, const set<string>& deniedCreateDBs, bool dbobjDelete, const set<string>& deleteDBs, const set<string>& deniedDeleteDBs, bool dbOwner,
+			bool dbobjCreate, const set<string>& createDBs, const set<string>& deniedCreateDBs, bool dbobjDelete,
+			const set<string>& deleteDBs, const set<string>& deniedDeleteDBs, bool dbOwner,
 			const set<string>& dbOwnerPattern, bool dbManage, const set<string>& allowDbManage, const set<string>& deniedDbManage,
-			long long queryResultMemLimit, long long taskGroupMemLimit);
+			long long queryResultMemLimit, long long taskGroupMemLimit, bool isViewOwner);
     AuthenticatedUser(const ConstantSP& userObj);
     ConstantSP toTuple() const ;
     void setLoginNanoTimeStamp(long long t){loginNanoTimestamp_ = t;}
@@ -186,7 +187,8 @@ public:
 	inline bool isGuest() const { return permissionFlag_ & 2;}
 	inline bool canExecScript() const {return permissionFlag_ & 4;}
 	inline bool canUnitTest() const {return permissionFlag_ & 8;}
-	inline bool canManageDatabase(const string& name) const { return accessObjectRule((permissionFlag_ & 16), "DM_", "DDM_", name); }
+	inline bool canManageCatalog(const string& catalog) const { return accessCatalogRule((permissionFlag_ & 16), "DM_", "DDM_", catalog); }
+	inline bool canManageDatabase(const string& name) const { return accessDBRule((permissionFlag_ & 16), "DM_", "DDM_", name); }
 	inline bool canReadTable() const { return permissionFlag_ & 32;}
 	inline bool canWriteTable() const { return canInsertTable() && canUpdateTable() && canDeleteTable(); }
 	inline bool canInsertTable() const { return permissionFlag_ & (1 << 11);}
@@ -195,16 +197,22 @@ public:
 	inline bool canUseView() const { return permissionFlag_ & 128;}
 	inline bool canCreateDBObject() const { return permissionFlag_ & 256;}
 	inline bool canDeleteDBObject() const { return permissionFlag_ & 512;}
-	inline bool isDBOwner() const { return permissionFlag_ & 1024;}
-	bool matchDBOwner(const string& obj) const { return matchPattern(isDBOwner(), dbOwnerPatterns_, obj); }
+	inline bool isDBOwner() const { return permissionFlag_ & 1024 || !dbOwnerPatterns_.empty(); }
+	bool isViewOwner() const { return permissionFlag_ & (1 << 14); }
+	bool matchViewOwner(const string& owner) const { return isViewOwner() && getUserId() == owner; }
+	bool matchDBOwner(const string& obj) const { return matchPattern(permissionFlag_ & 1024, dbOwnerPatterns_, obj); }
 	bool canReadTable(const string& name) const { return accessTableRule(canReadTable(), "RT_", "DRT_", name); }
 	bool canWriteTable(const string& name) const { return canInsertTable(name) && canUpdateTable(name) && canDeleteTable(name); }
 	bool canInsertTable(const string& name) const { return accessTableRule(canInsertTable(), "IT_", "DIT_", name); }
 	bool canUpdateTable(const string& name) const { return accessTableRule(canUpdateTable(), "UT_", "DUT_", name); }
 	bool canDeleteTable(const string& name) const { return accessTableRule(canDeleteTable(), "DT_", "DDT_", name); }
-	bool canReadView(const string& name) const { return accessObjectRule(canUseView(), "RV_", "DRV_", name, ""); }
-	bool canCreateDBObject(const string& name) const { return accessObjectRule(canCreateDBObject(), "CD_", "DCD_", name, ""); }
-	bool canDeleteDBObject(const string& name) const { return accessObjectRule(canDeleteDBObject(), "DD_", "DDD_", name, ""); }
+	bool canReadTableInCatalog(const string& catalog) const { return accessCatalogRule(canReadTable(), "RT_", "DRT_", catalog); }
+	bool canInsertTableInCatalog(const string& catalog) const { return accessCatalogRule(canInsertTable(), "IT_", "DIT_", catalog); }
+	bool canUpdateTableInCatalog(const string& catalog) const { return accessCatalogRule(canUpdateTable(), "UT_", "DUT_", catalog); }
+	bool canDeleteTableInCatalog(const string& catalog) const { return accessCatalogRule(canDeleteTable(), "DT_", "DDT_", catalog); }
+	bool canReadView(const string& viewName) const { return accessViewRule(canUseView(), viewName); }
+	bool canCreateDBObject(const string& name) const { return accessDBRule(canCreateDBObject(), "CD_", "DCD_", name, ""); }
+	bool canDeleteDBObject(const string& name) const { return accessDBRule(canDeleteDBObject(), "DD_", "DDD_", name, ""); }
 	// return 0 if no limit
 	long long queryResultMemLimit() { return queryResultMemLimit_; }
 	long long taskGroupMemLimit() { return taskGroupMemLimit_; }
@@ -215,9 +223,10 @@ public:
     static AuthenticatedUserSP createGuestUser();
 
 private:
-
-	bool accessObjectRule(bool global, const char* prefix, const char* denyPrefix, const string& objName, const char* objPrefix = "$DB$") const;
+	bool accessCatalogRule(bool global, const char* prefix, const char* denyPrefix, const string& catName) const;
+	bool accessDBRule(bool global, const char* prefix, const char* denyPrefix, const string& objName, const char* objPrefix = "$DB$") const;
 	bool accessTableRule(bool global, const char* prefix, const char* denyPrefix, const string& tableName) const;
+	bool accessViewRule(bool global, const string& viewName) const;
 	bool matchPattern(bool global, const unordered_set<string>& patterns, const string& name) const;
 
     string userId_;
@@ -240,8 +249,9 @@ private:
      * bit11: global insert
      * bit12: global update
      * bit13: global delete
+	 * bit14: view owner
      */
-    unsigned int permissionFlag_;
+    uint32_t permissionFlag_;
 
     std::atomic<bool> expired_;
     unordered_set<string> permissions_;
@@ -255,7 +265,7 @@ class Array{
 public:
 	Array(int capacity) : data_(new T[capacity]), size_(0), capacity_(capacity){}
 	Array(T* data, int size, int capacity): data_(data), size_(size), capacity_(capacity){}
-	Array(const Array<T>& copy) : data_(new T[copy.size_]), size_(copy.size_), capacity_(copy.capacity_){
+	Array(const Array<T>& copy) : size_(copy.size_), capacity_(copy.capacity_){
 		data_ = new T[size_];
 		memcpy(data_, copy.data_, sizeof(T) * size_);
 	}
@@ -464,7 +474,7 @@ private:
 	IrremovableLocklessFlatHashmap<DolphinString, int> keyMap_;
 #endif
 	deque<int> sortedIndices_;
-	mutable Mutex writeMutex_;
+	mutable RWLock writeMutex_;
 	mutable Mutex versionMutex_;
     bool readOnly_ = false;
 };
@@ -750,7 +760,7 @@ public:
 	 */
 	inline bool isTransient() const {return flag_ & 32768;}
 	/**
-	 * @brief et the transient flag.
+	 * @brief set the transient flag.
 	 */
 	inline void setTransient(bool val){ if(val) flag_ |= 32768; else flag_ &= ~32768;}
 	/**
@@ -769,6 +779,14 @@ public:
 	 * @brief Return the DATA_CATEGORY of this constant.
 	 */
 	inline DATA_CATEGORY getCategory() const {return DATA_CATEGORY((flag_ >> 24) & 15);}
+	/**
+	 * @brief set the COW(copy on write) flag (bit 28)
+	 */
+	inline void setCOW(bool val){ if(val) flag_ |= 268435456; else flag_ &= ~268435456;}
+	/**
+	 * @brief Return whether the flag of COW is on.
+	 */
+	inline bool isCOW() const { return flag_ & 268435456;}
 	/**
 	 * @brief Return whether this constant is scalar.
 	 */
@@ -2062,6 +2080,17 @@ public:
 	 */
 	virtual bool set(const ConstantSP& index, const ConstantSP& value, const ConstantSP& valueIndex) {return false;}
 	/**
+	 * @brief Replace the cell value specified by the index with the new value. Usually the current object
+	 * is a tuple or an any dictionary.
+	 *
+	 * @param heap: the heap of the execution context.
+	 * @param index: index must be a tuple.
+	 * @param value: could be any ConstantSP object.
+	 * @param dim: dim is a zero-based index. The index's dim-th element is the index of the current object to update.
+	 * @return true if set succeed, false else.
+	 */
+	virtual bool set(Heap* heap, const ConstantSP& index, const ConstantSP& value, int dim) {return false;}
+	/**
 	 * @brief Replace the cell value specified by the index with value.
 	 * 		  Note that setNonNull will ignore null value when replacing data.
 	 * 
@@ -3046,18 +3075,20 @@ public:
 	virtual void max(INDEX start, INDEX length, const ConstantSP& out, INDEX outputStart=0) const = 0;
 	/**
 	 * @brief Return the index of the maximum value in this vector.
-	 * 
+	 *
+	 * @param rightMost If there are multiple maximum/minimum values, choose the last one if `rightMost` is true.
 	 * @return The index of the maximum value.
 	*/
-	virtual INDEX imax() const = 0;
+	virtual INDEX imax(bool rightMost = false) const = 0;
 	/**
 	 * @brief Return the index of the maximum value in the specified range of this vector.
 	 * 
 	 * @param start: The starting position of the specified range.
 	 * @param length: The length of the specified range.
+	 * @param rightMost If there are multiple maximum/minimum values, choose the last one if `rightMost` is true.
 	 * @return The index of the maximum value.
 	*/
-	virtual INDEX imax(INDEX start, INDEX length) const = 0;
+	virtual INDEX imax(INDEX start, INDEX length, bool rightMost = false) const = 0;
 	/**
 	 * @brief Return the minimum value of this vector.
 	 * 
@@ -3084,17 +3115,19 @@ public:
 	/**
 	 * @brief Return the index of the minimum value in this vector.
 	 * 
+	 * @param rightMost If there are multiple maximum/minimum values, choose the last one if `rightMost` is true.
 	 * @return The index of the minimum value.
 	*/
-	virtual INDEX imin() const = 0;
+	virtual INDEX imin(bool rightMost = false) const = 0;
 	/**
 	 * @brief Return the index of the minimum value in the specified range of this vector.
 	 * 
 	 * @param start: The starting position of the specified range.
 	 * @param length: The length of the specified range.
+	 * @param rightMost If there are multiple maximum/minimum values, choose the last one if `rightMost` is true.
 	 * @return The index of the minimum value.
 	*/
-	virtual INDEX imin(INDEX start, INDEX length) const = 0;
+	virtual INDEX imin(INDEX start, INDEX length, bool rightMost = false) const = 0;
 	/**
 	 * @brief Return the average value of this vector.
 	 * 
@@ -3951,6 +3984,7 @@ public:
 	void setColumnLabel(const ConstantSP& label);
 	bool reshape(INDEX cols, INDEX rows);
 	string getString() const;
+	string getString(Heap* pHeap) const;
 	string getString(INDEX index) const ;
 	ConstantSP get(const ConstantSP& index) const ;
 	bool set(const ConstantSP index, const ConstantSP& value);
@@ -4033,6 +4067,19 @@ public:
 	 * @return True if set succeed, else false.
 	 */
 	virtual bool set(const ConstantSP& key, const ConstantSP& value)=0;
+	// This set function avoids the overhead of smart pointers to improve JIT speed
+	virtual bool set(Constant& key, Constant& value) { return false; }
+	/**
+	 * @brief Replace the cell value specified by the index with the new value. Usually the current object
+	 * is a tuple or an any dictionary.
+	 *
+	 * @param heap: the heap of the execution context.
+	 * @param index: index must be a tuple.
+	 * @param value: could be any ConstantSP object.
+	 * @param dim: dim is a zero-based index. The index's dim-th element is the index of the current object to update.
+	 * @return true if set succeed, false else.
+	 */
+	virtual bool set(Heap* heap, const ConstantSP& index, const ConstantSP& value, int dim) {return false;}
 	/**
 	 * @brief Set the element values accoreding to key.
 	 *
@@ -4346,6 +4393,10 @@ public:
 	 * @return True if romove succeed, eles false.
 	 */
 	virtual bool upsert(vector<ConstantSP>& values, bool ignoreNull, INDEX& insertedRows, string& errMsg) {throw RuntimeException("Table::upsert() not supported");}
+	virtual bool upsert(vector<ConstantSP>& values, bool ignoreNull, INDEX& insertedRows, INDEX& updatedRows,
+						string& errMsg) {
+		throw RuntimeException("Table::upsert() not supported");
+	}
 	virtual DATA_TYPE getRawType() const {return DT_DICTIONARY;}
 	/**
 	 * @brief Return whether this table is a distributed table.
@@ -4689,8 +4740,8 @@ private:
 
 class DFSChunkMeta : public Constant{
 public:
-	DFSChunkMeta(const string& path, const Guid& id, int version, int size, CHUNK_TYPE chunkType, const vector<string>& sites, long long cid);
-	DFSChunkMeta(const string& path, const Guid& id, int version, int size, CHUNK_TYPE chunkType, const string* sites, int siteCount, long long cid);
+	DFSChunkMeta(const string& path, const Guid& id, int version, int size, CHUNK_TYPE chunkType, const vector<string>& sites, long long cid, long long term = -1);
+	DFSChunkMeta(const string& path, const Guid& id, int version, int size, CHUNK_TYPE chunkType, const string* sites, int siteCount, long long cid, long long term = -1);
 	DFSChunkMeta(const DataInputStreamSP& in);
 	virtual ~DFSChunkMeta();
 	virtual IO_ERR serialize(const ByteArrayCodeBufferSP& buffer) const;
@@ -4703,7 +4754,7 @@ public:
 	virtual ConstantSP values() const;
 	virtual DATA_TYPE getRawType() const {return DT_DICTIONARY;}
 	virtual ConstantSP getInstance() const {return getValue();}
-	virtual ConstantSP getValue() const {return new DFSChunkMeta(path_, id_, version_, size_, (CHUNK_TYPE)type_, sites_, replicaCount_, cid_);}
+	virtual ConstantSP getValue() const {return new DFSChunkMeta(path_, id_, version_, size_, (CHUNK_TYPE)type_, sites_, replicaCount_, cid_, term_);}
 	inline const string& getPath() const {return path_;}
 	inline const Guid& getId() const {return id_;}
 	inline long long getCommitId() const {return cid_;}
@@ -4719,6 +4770,7 @@ public:
 	inline bool isSplittable() const { return type_ == SPLIT_TABLET_CHUNK;}
 	inline bool isSmallFileBlock() const {return type_ == SMALLFILE_CHUNK;}
 	inline CHUNK_TYPE getChunkType() const {return (CHUNK_TYPE)type_;}
+	inline long long getTerm() const { return term_; }
 
 protected:
 	ConstantSP getAttribute(const string& attr) const;
@@ -4733,6 +4785,7 @@ private:
 	string path_;
 	long long cid_;
 	Guid id_;
+	long long term_;
 };
 
 class SysObj : public Constant {
@@ -4757,6 +4810,7 @@ public:
 	virtual ConstantSP getInstance() const { return getValue();}
 	const string& getName() const { return name_;}
 	const string& getQualifier() const { return qualifier_;}
+	void setQulifier(const string &s) { qualifier_ = s; }
 	string getFullName() const;
 	inline bool isBuiltin() const { return flag_ & 1;}
 	virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const;
@@ -4989,6 +5043,8 @@ public:
 	inline void setWithinAnalyticFunction(bool option) { if(option) flag_ |= 32; else flag_ &= ~32;}
 	inline bool isDefinedAnalyticFunction() const { return flag_ & 64;}
 	inline void setDefinedAnalyticFunction(bool option) { if(option) flag_ |= 64; else flag_ &= ~64;}
+	inline bool isMacroUsed() const {return flag_ & 128;}
+	inline void setMacroUsed(bool option) { if(option) flag_ |= 128; else flag_ &= ~128;}
 
 private:
 	TableSP tableSP_;
@@ -5001,6 +5057,7 @@ private:
 	 * bit4: 0: out of SQL FROM clause, 1: within SQL FROM clause
 	 * bit5: 0: not within analytic function, 1: within analytic function
 	 * bit6: 0: not define an analytic function, 1: define an analytic funciton
+	 * bit7: 0: not use macro object, 1: macro object used.
 	 */
 	int flag_;
 	DictionarySP cachedCols_;
@@ -5039,6 +5096,7 @@ public:
 	ColumnRef* localize(const SQLContextSP& contextSP) const{ return new ColumnRef(contextSP, qualifier_, name_);}
 	ColumnRef* localize() const{ return new ColumnRef(contextSP_, qualifier_, name_);}
 	bool operator ==(const ColumnRef& target);
+	bool operator ==(const ColumnRef& target) const;
 	virtual void collectVariables(vector<int>& vars, int minIndex, int maxIndex) const { if(index_<=maxIndex && index_>=minIndex) vars.push_back(index_);}
 	virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
 	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
@@ -5057,17 +5115,22 @@ class Operator{
 public:
 	Operator(int priority, bool unary): priority_(priority), unary_(unary){}
 	virtual ~Operator(){}
-	int getPriority() const {return priority_;}
-	bool isUnary() const {return unary_;}
+	inline int getPriority() const {return priority_;}
+	inline bool isUnary() const {return unary_;}
+	inline const string& getName() const {return funcDef_->getName();}
+	inline string getTemplateSymbol() const { return templateSymbol_;}
+	inline const FunctionDefSP& getFunctionDef() const { return funcDef_;}
+	inline FastFunc getFastImplementation() const {return funcDef_->getFastImplementation();}
 	virtual ConstantSP evaluate(Heap* heap, const ConstantSP& a, const ConstantSP& b) = 0;
-	virtual const string& getName() const = 0;
 	virtual string getOperatorSymbol() const  = 0;
-	virtual string getTemplateSymbol() const = 0;
 	virtual bool isPrimitiveOperator() const = 0;
 	virtual IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const = 0;
 	virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const = 0;
 	virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const = 0;
-	virtual FastFunc getFastImplementation() const = 0;
+
+protected:
+	FunctionDefSP funcDef_;
+	string templateSymbol_;
 
 private:
 	int priority_;
@@ -5101,6 +5164,7 @@ public:
 	virtual bool run(const vector<string>& source, const string& currentPath = "", int firstLine = 0)=0;
 	virtual bool run(const string& scriptFile)=0;
 	virtual bool run(const ObjectSP& script)=0;
+	virtual bool run(const ObjectSP& script, ConstantSP& result)=0;
 	virtual bool run(const string& function, vector<ConstantSP>& params)=0;
 	virtual bool run(const FunctionDefSP& function, vector<ConstantSP>& params)=0;
 	virtual bool run(const vector<string>& variables, vector<ConstantSP>& params)=0;
@@ -5108,6 +5172,10 @@ public:
 	virtual FunctionDefSP parseFunctionDef(const string& script) = 0;
 	virtual vector<string> parseModuleStatement(const string& script) = 0;
 	virtual vector<vector<string>> parseUseStatement(const string& script) = 0;
+    virtual DictionarySP parseScript(const vector<string> &source, const string &currentPath = "", int firstLine = 0)= 0;
+	virtual vector<FunctionDefSP> parseFunctionDefInModule(const string &moduleName) {
+		throw RuntimeException("Session::parseFunctionDefInModule isn't implement yet.");
+	}
 	virtual bool contain(const string& key) const =0;
 	virtual ConstantSP get(const string& key) const=0;
 	virtual vector<pair<string,ConstantSP>> getAll() const=0;
@@ -5161,6 +5229,7 @@ public:
 	virtual OOClassSP getOOClass(const string& name, const string& qualifier = "") const = 0;
 	virtual bool addOOClass(const OOClassSP& ooClass) = 0;
 	virtual bool addPluginFunction(const FunctionDefSP& funcDef) = 0;
+	virtual bool replaceFunction(const FunctionDefSP& funcDef) = 0;
 	virtual void addFunctionDeclaration(FunctionDefSP& func) = 0;
 	virtual void addFunctionalView(const FunctionDefSP& funcDef) = 0;
 	virtual bool removeFunctionalView(const string& name) = 0;
@@ -5182,35 +5251,33 @@ public:
 	inline void setCompressionOption(bool option){ if(option) flag_ |= 64; else flag_ &= ~64;}
 	inline int getDepth() const { return (flag_ >> 8) & 7;}
 	inline void setDepth(int depth) { flag_ = (flag_ & ~(7<<8)) | (depth << 8);}
-    inline bool isTracing() const { return tracing_; }
-    inline void setTracing(bool tracing) { tracing_ = tracing; }
 	inline bool getEnableTransactionStatement() const { return flag_ & 2048; }
 	inline void setEnableTransactionStatement(bool option) { if(option) flag_ |= 2048; else flag_ &= ~2048; }
 	inline bool isStreamingEnv() const { return flag_ & 4096;}
 	inline void setStreamingEnv(bool option) {if(option) flag_ |= 4096; else flag_ &= ~4096; }
 	inline int getSQLStandard() const { return (flag_ >> 13) & 15;}
 	inline void setSQLStandard(int sqlStandard) {flag_ = (flag_ & ~(15<<13)) | (sqlStandard << 13); }
-	inline bool serializeUniqueName() { return flag_ & (1 << 18); }
-	inline void setSerializeUniqueName(bool option) { if (option) flag_ |= (1 << 18); else flag_ &= ~(1 << 18); }
-	virtual TransactionSP getTransaction() { return transaction_; }
-	virtual void setTransaction(const TransactionSP& transaction) { transaction_ =  transaction; }
-	virtual int64_t getAsyncReplicationTaskId() { return asyncReplicationTaskId_; }
-	virtual void setAsyncReplicationTaskId(int64_t taskId) { asyncReplicationTaskId_ = taskId; }
+	inline bool isTracing() { return flag_ & (1 << 18); }
+	inline void setTracing(bool option) { if (option) flag_ |= (1 << 18); else flag_ &= ~(1 << 18); }
+	inline TransactionSP getTransaction() { return transaction_; }
+	inline void setTransaction(const TransactionSP& transaction) { transaction_ =  transaction; }
+	inline long long getAsyncReplicationTaskId() { return asyncReplicationTaskId_; }
+	inline void setAsyncReplicationTaskId(long long taskId) { asyncReplicationTaskId_ = taskId; }
 	inline const Guid& getClientId() const { return clientId_;}
 	inline void setClientId(const Guid& clientId) { clientId_ = clientId;}
 	inline long long getSeqNo() const { return seqNo_;}
 	inline void setSeqNo(long long seqNo) { seqNo_ = seqNo;}
+	inline const string& getCurrentCatalog() const { return currentCatalog_;}
+	inline void setCurrentCatalog(const string& catalog){currentCatalog_ = catalog;}
 
-    virtual DictionarySP parseScript(const vector<string> &source, const string &currentPath = "", int firstLine = 0) {return nullptr;};
-
-  protected:
+protected:
 	long long sessionID_;
 	HeapSP heap_;
 	OutputSP out_;
 	AuthenticatedUserSP user_;
 	string remoteIP_;
-	int remotePort_;
 	string remoteSiteAlias_;
+	int remotePort_;
 	int remoteSiteIndex_;
 	Guid rootJobId_;
 	Guid jobId_;
@@ -5219,11 +5286,11 @@ public:
 	int flag_;
 	TransactionSP transaction_;
 	// for async replication task execution
-	int64_t asyncReplicationTaskId_ = 0;
+	long long asyncReplicationTaskId_ = 0;
+	string currentCatalog_;
 
 private:
 	PARSER_TYPE parserType_;
-    bool tracing_ = false;
     Guid clientId_;
     long long seqNo_;
 };
@@ -5237,7 +5304,6 @@ public:
 	virtual bool needRetry() = 0;
 	virtual uint64_t getTxnId() const = 0;
 	virtual ~Transaction() {}
-private:
 };
 
 class Console {
@@ -5359,8 +5425,6 @@ public:
 	inline void setViewMode(bool enabled = true) { if(enabled) status_ |= 1; else status_ &= ~1;}
 	inline bool isDefMode() const { return status_ & 2;}
 	inline void setDefMode() { status_ |= 2; }
-	inline bool isModuleMode() const { return status_ & 4;}
-	inline void setModuleMode(bool enabled = true) { if(enabled) status_ |= 4; else status_ &= ~4; }
 	int getIndex(const string& name) const;
 	int getLocalIndex(const string& name) const;
 	string getName(int index) const;
@@ -5392,6 +5456,9 @@ public:
 	}
 	bool copyMeta(Heap *heap);
 	bool setMetaName(const string &name, int index);
+	// For OOP
+	ConstantSP getSelf() { return self_; }
+	void setSelf(ConstantSP &self) { self_ = self; }
 
 private:
 	struct HeapMeta{
@@ -5405,6 +5472,8 @@ private:
 	Session* session_;
 	int size_;
 	char status_;
+	// For OOP
+	ConstantSP self_;
 };
 
 struct JITCfgNode {
@@ -5575,7 +5644,7 @@ public:
 	inline void setCommitId(long long cid) { cid_ = cid;}
 	inline bool operator ==(const DomainPartition& target){ return  (key_ == target.key_) && (id_ == target.id_);}
 	IO_ERR serialize(Heap* pHeap, const ByteArrayCodeBufferSP& buffer) const;
-	static string processPartitionId(const string& id);
+	static string processPartitionId(const string& id, bool removeSpecialChar = true);
 	static ConstantSP parsePartitionId(const string& id, DATA_TYPE type);
 
 private:
@@ -5702,9 +5771,11 @@ public:
 	virtual DomainSP getDimensionalDomain(int dimension) const;
 	virtual DomainSP copy() const = 0;
 	bool addTable(const string& tableName, const string& owner, const string& physicalIndex, vector<ColumnDesc>& cols, vector<int>& partitionColumns);
-	bool addTable(const string& tableName, const string& owner, const string& physicalIndex, vector<ColumnDesc>& cols, vector<int>& partitionColumns, vector<pair<int, bool>>& sortColumns, DUPLICATE_POLICY rowDuplicatePolicy, const vector<pair<int, FunctionDefSP>>& sortKeyMappingFunction);
+	bool addTable(const string& tableName, const string& owner, const string& physicalIndex, vector<ColumnDesc>& cols, vector<int>& partitionColumns,
+		vector<pair<int, bool>>& sortColumns, DUPLICATE_POLICY rowDuplicatePolicy, const vector<pair<int, FunctionDefSP>>& sortKeyMappingFunction, bool appendForDelete);
 	bool getTable(const string& tableName, string& owner, string& physicalIndex, vector<ColumnDesc>& cols, vector<int>& partitionColumns) const;
-	bool getTable(const string& tableName, string& owner, string& physicalIndex, vector<ColumnDesc>& cols, vector<int>& partitionColumns, vector<pair<int, bool>>& sortColumns, DUPLICATE_POLICY& rowDuplicatePolicy, vector<pair<int, FunctionDefSP>>& sortKeyMappingFunction) const;
+	bool getTable(const string& tableName, string& owner, string& physicalIndex, vector<ColumnDesc>& cols, vector<int>& partitionColumns,
+		vector<pair<int, bool>>& sortColumns, DUPLICATE_POLICY& rowDuplicatePolicy, vector<pair<int, FunctionDefSP>>& sortKeyMappingFunction, bool& appendForDelete) const;
 	string getTabletPhysicalIndex(const string& tableName);
 	bool existsTable(const string& tableName);
 	bool removeTable(const string& tableName);
@@ -5716,6 +5787,7 @@ public:
 	inline int getRentionDimension() const { return retentionDimension_;}
     inline int getHoursToColdVolume() const {return hoursToColdVolume_;}
 	inline int getTimeZoneOffset() const { return tzOffset_;}
+	inline int getFlag() const { return flag_; }
 	void setRentionPeriod(int retentionPeriod, int retentionDimension, int tzOffset, int hoursToColdVolume);
 	string getOwner() const { return owner_;}
 	bool isOwner(const string& owner) const { return owner == owner_;}
@@ -5727,6 +5799,8 @@ public:
     bool isSingleTableTablet() const {return flag_ & 1;}
 	bool enableReplication() const { return flag_ & (1 << 1); }
 	void setReplication(bool enable) { if (enable) flag_ |= ((unsigned long)1) << 1; else flag_ &= ~(((unsigned long)1) << 1); }
+	bool isRemoveSpecialChar() const { return flag_ & (1 << 2); }
+	void setRemoveSpecialChar(bool enable) { if (enable) flag_ |= ((unsigned long)1) << 2; else flag_ &= ~(((unsigned long)1) << 2); }
 	void setTableIndependentChunk(bool option) { tableIndependentChunk_ = option;}
 	bool isTableIndependentChunk() const { return tableIndependentChunk_;}
     static string getUniqueIndex(long long id);
@@ -5737,7 +5811,7 @@ public:
 	static void set_interaction(const vector<DomainPartitionSP>& set1, const vector<DomainPartitionSP>& set2, vector<DomainPartitionSP>& result);
 	static void set_union(const vector<DomainPartitionSP>& set1, const vector<DomainPartitionSP>& set2, vector<DomainPartitionSP>& result);
 	static DomainSP loadDomain(const string& domainFile);
-	static DomainSP loadDomain(const DataInputStreamSP& in);
+	static DomainSP loadDomain(const DataInputStreamSP& in, const string& dbName = "");
 	static DomainSP createDomain(const string& owner, PARTITION_TYPE  partitionType, const ConstantSP& scheme);
 	static DomainSP createDomain(const string& owner, PARTITION_TYPE  partitionType, const ConstantSP& scheme, const ConstantSP& sites);
 
@@ -5760,8 +5834,8 @@ protected:
 		TableHeader(const string& owner, const string& physicalIndex, vector<ColumnDesc>& tablesType, vector<int>& partitionKeys): rowDuplicatePolicy_(DUPLICATE_POLICY::KEEP_ALL), owner_(owner),
 				physicalIndex_(physicalIndex), tablesType_(tablesType), partitionKeys_(partitionKeys){}
 		TableHeader(const string& owner, const string& physicalIndex, vector<ColumnDesc>& tablesType, vector<int>& partitionKeys, vector<pair<int, bool>>& sortKeys,
-				DUPLICATE_POLICY rowDuplicatePolicy,const vector<pair<int, FunctionDefSP>>& sortKeyMappingFunction): rowDuplicatePolicy_(rowDuplicatePolicy), owner_(owner), physicalIndex_(physicalIndex),
-				tablesType_(tablesType), partitionKeys_(partitionKeys), sortKeys_(sortKeys), sortKeyMappingFunction_(sortKeyMappingFunction){}
+				DUPLICATE_POLICY rowDuplicatePolicy,const vector<pair<int, FunctionDefSP>>& sortKeyMappingFunction, bool appendForDelete): rowDuplicatePolicy_(rowDuplicatePolicy), owner_(owner), physicalIndex_(physicalIndex),
+				tablesType_(tablesType), partitionKeys_(partitionKeys), sortKeys_(sortKeys), sortKeyMappingFunction_(sortKeyMappingFunction), appendForDelete_(appendForDelete) {}
 		DUPLICATE_POLICY rowDuplicatePolicy_;
 		string owner_;
 		string physicalIndex_;
@@ -5769,6 +5843,7 @@ protected:
 		vector<int> partitionKeys_;
 		vector<pair<int, bool>> sortKeys_;
         vector<pair<int, FunctionDefSP>> sortKeyMappingFunction_;
+		bool appendForDelete_;
 	};
 	vector<DomainPartitionSP> partitions_;
 	PARTITION_TYPE partitionType_;
@@ -5788,6 +5863,7 @@ protected:
 	/*
 		bit0: isSingleTablet
 		bit1: enableReplication
+		bit2: removeSpecialChar
 	*/
     int flag_;
 	SymbolBaseManagerSP symbaseManager_;
@@ -5832,14 +5908,15 @@ struct TableUpdateUrgency {
 struct TopicSubscribe {
 	TopicSubscribe(const string& topic, int hashValue, vector<string> attributes, const FunctionDefSP& handler, const AuthenticatedUserSP& user,
 			bool msgAsTable, int batchSize, int throttleTime, bool persistOffset, bool timeTrigger, bool handlerNeedMsgId,
-			const string& userId = "", const string& pwd = "") : msgAsTable_(msgAsTable),
+			const string& userId = "", const string& pwd = "", long long sessionID = 0, const bool& multicast = false) : msgAsTable_(msgAsTable),
 			persistOffset_(persistOffset), timeTrigger_(timeTrigger), handlerNeedMsgId_(handlerNeedMsgId), hashValue_(hashValue), batchSize_(batchSize),
-			throttleTime_(throttleTime), userId_(userId), pwd_(pwd), cumSize_(0), messageId_(-1), expired_(-1), topic_(topic), attributes_(attributes), handler_(handler), user_(user){}
+			throttleTime_(throttleTime), userId_(userId), pwd_(pwd), sessionID_(sessionID), cumSize_(0), messageId_(-1), expired_(-1), topic_(topic), attributes_(attributes), handler_(handler), user_(user), multicast_(multicast){}
 	bool append(long long msgId, const ConstantSP& msg, long long& outMsgId, ConstantSP& outMsg);
 	bool getMessage(long long now, long long& outMsgId, ConstantSP& outMsg);
 	bool updateSchema(const TableSP& emptyTable);
 	bool isUnsubscribed() { return isUnsubscribed_; }
 	void setUnsubscribed() { isUnsubscribed_ = true; }
+    void setSubscribed() { isUnsubscribed_ = false; }
 
 	const bool msgAsTable_;
 	const bool persistOffset_;
@@ -5858,6 +5935,7 @@ struct TopicSubscribe {
 	const int throttleTime_; //in millisecond
 	const string userId_;
 	const string pwd_;
+    const long long sessionID_;
 	int cumSize_;
 	std::atomic<long long> messageId_;
 	long long expired_;
@@ -5869,6 +5947,7 @@ struct TopicSubscribe {
 	ConstantSP filter_;
 	Mutex mutex_;
 	bool isUnsubscribed_ = false;
+    bool multicast_ = false;
 };
 
 class SessionThreadCallGuard {

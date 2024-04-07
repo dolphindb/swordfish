@@ -69,8 +69,11 @@ public:
 	static IO_ERR serializeObjectAndDependency(Heap* pHeap, const Guid& id, const ObjectSP& obj, const unordered_map<string, FunctionDef*>& extraDependencies, int minimumVer, bool skipSystemUDF, bool checkDependency, const ByteArrayCodeBufferSP& buffer);
 	static ObjectSP readObjectAndDependency(Session* session, const DataInputStreamSP& in, Guid& id);
 	static string getUniqueFuncName(const FunctionDef* func);
+	static string getUniqueClassName(const OOClass* cls);
 	static string getNameFromUnqiueName(const string& uniqueName);
 	static bool isUniqueFuncName(const string& name);
+	// after D20-11228, getString() of funcDef contains unique funcName, we need regenerate script to fix it.
+	static void rmUniqueNameFromScript(FunctionDef* func);
 };
 
 class CodeMarshal: public ConstantMarshalImp{
