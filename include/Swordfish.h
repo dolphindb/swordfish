@@ -19,7 +19,7 @@
 /** Library minor version. */
 #define SWORDFISH_VERSION_MINOR 0
 /** Library patch version. */
-#define SWORDFISH_VERSION_PATCH 0
+#define SWORDFISH_VERSION_PATCH 1
 /** @} */
 
 //==============================================================================

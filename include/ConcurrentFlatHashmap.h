@@ -748,19 +748,24 @@ public:
 
 private:
 	static std::unordered_set<epoch_manager_type *> & get_epoch_mgrs() {
-		static std::unordered_set<epoch_manager_type *> epoch_mgrs;
-		return epoch_mgrs;
+		// In `thread_epoch::~thread_epoch()`, it will use this static object `epoch_mgrs`; and there are
+		// static objects of `thread_epoch`.
+		// We MUST make sure `epoch_mgrs` deinitialize AFTER all static objects of `thread_epoch`. In most
+		// cases this holds true. However, in some environments it does not.
+		// So here do NOT let `epoch_mgrs` deinitialize, ref: https://isocpp.org/wiki/faq/ctors#construct-on-first-use-v2
+		static std::unordered_set<epoch_manager_type *> *const epoch_mgrs = new std::unordered_set<epoch_manager_type *>();
+		return *epoch_mgrs;
 	}
 
 	static std::unordered_set<thread_epoch_type *> & get_epochs() {
-		static std::unordered_set<thread_epoch_type *> epochs;
-		return epochs;
+		static std::unordered_set<thread_epoch_type *> *const epochs = new std::unordered_set<thread_epoch_type *>();
+		return *epochs;
 	}
-public:
 
+public:
 	static Mutex* get_mutex() {
-		static Mutex mtx;
-		return &mtx;
+		static Mutex *const mtx = new Mutex();
+		return mtx;
 	}
 
 	static void add_epoch(thread_epoch_type *epoch)

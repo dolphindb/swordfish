@@ -18,6 +18,7 @@
 #include <chrono>
 #include <functional>
 #include <atomic>
+#include <map>
 
 #include "Types.h"
 #include "SmartPointer.h"
@@ -59,6 +60,7 @@ class Iterator;
 class Constant;
 class Vector;
 class Matrix;
+class Tensor;
 class Table;
 class Set;
 class Dictionary;
@@ -106,6 +108,7 @@ typedef SmartPointer<Iterator> IteratorSP;
 typedef SmartPointer<Constant> ConstantSP;
 typedef SmartPointer<Vector> VectorSP;
 typedef SmartPointer<Matrix> MatrixSP;
+typedef SmartPointer<Tensor> TensorSP;
 typedef SmartPointer<Object> ObjectSP;
 typedef SmartPointer<Operator> OperatorSP;
 typedef SmartPointer<Statement> StatementSP;
@@ -2722,6 +2725,10 @@ public:
 	 * @param len: The buffer length.
 	 * @return True if succeed, else false.
 	*/
+
+	virtual ConstantSP moveGet(const ConstantSP& index) { throw RuntimeException("Vector::moveGet method not supported"); }
+	virtual bool moveAppend(ConstantSP& value, INDEX start, INDEX len) { throw RuntimeException("Vector::moveAppend method not supported"); }
+
 	virtual bool appendBool(const char* buf, int len){return false;}
 	/**
 	 * @brief Append data to this vector.
@@ -3574,6 +3581,7 @@ public:
 	 */
 	virtual bool findRange(const ConstantSP& target,INDEX* targetIndices,vector<pair<INDEX,INDEX> >& ranges)=0;
 	virtual long long getAllocatedMemory(INDEX size) const {return Constant::getAllocatedMemory();}
+    virtual long long getAllocatedMemory() const {return getAllocatedMemory(size());}
 	virtual int serialize(char* buf, int bufSize, INDEX indexStart, int offset, int& numElement, int& partial) const {throw RuntimeException("serialize method not supported");}
 	virtual int serialize(char* buf, int bufSize, INDEX indexStart, int offset, int targetNumElement, int& numElement, int& partial) const;
 
@@ -3997,6 +4005,74 @@ protected:
 	int rows_;
 	ConstantSP rowLabel_;
 	ConstantSP colLabel_;
+};
+
+class Tensor : public Constant {
+	using Constant::reshape;
+public:
+	enum class TensorType : uint8_t { Basic = 0 };
+	enum class DeviceType : uint8_t { CPU = 0 };
+
+	// Default constructor.
+	Tensor() = default;
+	// Copy constructor.
+	Tensor(const Tensor &) = default;
+	// Move constructor.
+	Tensor(Tensor &&) = default;
+	// Copy assignment.
+	Tensor &operator=(const Tensor &) = default;
+	// Move assignment.
+	Tensor &operator=(Tensor &&) = default;
+
+	Tensor(DATA_TYPE dataType, TensorType tensorType, const std::vector<int64_t> &shape,
+			const std::vector<int64_t> &strides = {}, DeviceType deviceType = DeviceType::CPU);
+
+	virtual ~Tensor() override;
+
+	TensorType getTensorType() const noexcept { return tensorType_; }
+	DeviceType getDeviceType() const noexcept { return deviceType_; }
+
+	uint32_t getTensorFlags() const noexcept { return tensorFlags_; }
+
+	int64_t ndim() const noexcept { return static_cast<int64_t>(shape_.size()); }
+
+	const std::vector<int64_t> & shape() const noexcept { return shape_; }
+	const std::vector<int64_t> & strides() const noexcept { return strides_; }
+
+	/// Return index of the last element, calculated with the following formula:
+	///   index = (shape[0]-1) * strides[0] + (shape[1]-1) * strides[1] + ...
+	int64_t indexOfLastElement() const;
+
+	/// Check if this tensor is contiguous.
+	bool isContiguous() const;
+
+	/// Create a NEW contiguous tensor base on this tensor.
+	/// @note This tensor remain unaffected.
+	virtual TensorSP contiguous() const = 0;
+
+	/// @note This tensor remain unaffected.
+	virtual TensorSP reshape(const std::vector<int64_t> &shape) const = 0;
+
+	/// Deep copy this tensor.
+	virtual TensorSP clone() const = 0;
+
+public:  //====== Override virtual interface of Constant ======//
+	virtual string getScript() const override;
+
+protected:
+	TensorType tensorType_;
+	DeviceType deviceType_;
+
+	/// Reserved for future use.
+	uint32_t tensorFlags_{};
+
+	/// E.g., a tensor with shape [D, H, W] means:
+	///   1. It is 3-dimensional.
+	///   2. Its depth is D, height (or rows) is H, width (or columns) is W.
+	///
+	/// If this tensor is contiguous, its strides are [H*W, W, 1].
+	std::vector<int64_t> shape_;
+	std::vector<int64_t> strides_;
 };
 
 class Set: public Constant {
@@ -4640,6 +4716,7 @@ public:
 	 * @brief Return the row duplicate policy of this table.
 	 */
     virtual DUPLICATE_POLICY getRowDuplicatePolicy() const { return DUPLICATE_POLICY::KEEP_ALL;}
+	virtual vector<FunctionDefSP> getPartitionFunction() const { return {}; }
 
 	/**
 	 * @brief Return whether this table is shared table.
@@ -5016,6 +5093,9 @@ public:
 	vector<INDEX>* getGroup();
 	ConstantSP getColumn(const string& qualifier, const string& name);
 	ConstantSP getColumn(const string& name);
+    ConstantSP getColumn(INDEX colIdx);
+    INDEX getColumnIndex(const string& qualifier, const string& name);
+	INDEX getColumnIndex(const string& name);
 	void cacheColumn(const string& name,const ConstantSP& col);
 	void enableCache();
 	void disableCache(){flag_ &= ~1;}
@@ -5102,6 +5182,7 @@ public:
 	virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
 	virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
 	virtual bool mayContainColumnRefOrVariable() const { return true;}
+	void bindColIndex();
 
 private:
 	SQLContextSP contextSP_;
@@ -5109,6 +5190,7 @@ private:
 	string name_;
 	int index_;
 	bool acceptFunctionDef_;
+    int colIndex_ = -1;
 };
 
 class Operator{
@@ -5667,14 +5749,14 @@ struct ClusterNodes {
 	const string controllerAlias;
 	const int controllerSiteIndex;
 	const vector<int> controllerSiteIndexPool;
-	const vector<DomainSite> sites;
+	const unordered_map<int, DomainSite> sites;
 	const unordered_map<string, int> sitesMap;
     SmartPointer<unordered_map<string, SERVER_TYPE>>  sitesTypeMap;
 
 	ClusterNodes(const string& ctrlSite, const string& ctrlAlias) : controllerSite(ctrlSite), controllerAlias(ctrlAlias), controllerSiteIndex(-1), sitesTypeMap( new unordered_map<string, SERVER_TYPE>()){}
 
 	ClusterNodes(const string& ctrlSite, const string& ctrlAlias, int ctrlSiteIndex, const vector<int>& ctrlSiteIndexPool,
-			const vector<DomainSite>& nodes, const unordered_map<string, int>& nodesMap, const SmartPointer<unordered_map<string, SERVER_TYPE>>& nodesTypeMap) : controllerSite(ctrlSite), controllerAlias(ctrlAlias),
+			const unordered_map<int, DomainSite>& nodes, const unordered_map<string, int>& nodesMap, const SmartPointer<unordered_map<string, SERVER_TYPE>>& nodesTypeMap) : controllerSite(ctrlSite), controllerAlias(ctrlAlias),
 			controllerSiteIndex(ctrlSiteIndex), controllerSiteIndexPool(ctrlSiteIndexPool), sites(nodes), sitesMap(nodesMap), sitesTypeMap(nodesTypeMap){
 	}
 
@@ -5687,29 +5769,37 @@ struct ClusterNodes {
 		if(it == sitesMap.end())
 			return -1;
 		else
-			return sites[it->second].getIndex();
+			return sites.find(it->second)->second.getIndex();
 	}
 	inline int getSiteIndex(const string& host, int port) const {
 		unordered_map<string, int>::const_iterator it = sitesMap.find(host + ":" + std::to_string(port));
 		if(it == sitesMap.end())
 			return -1;
 		else
-			return sites[it->second].getIndex();
+			return sites.find(it->second)->second.getIndex();
 	}
 	inline const DomainSite& getSite(const string& alias) const {
 		unordered_map<string, int>::const_iterator it = sitesMap.find(alias);
 		if(it == sitesMap.end())
 			return DomainSite::emptySite_;
 		else
-			return sites[it->second];
+			return sites.find(it->second)->second;
 	}
 	inline const DomainSite& getSite(const string& host, int port) const {
 		unordered_map<string, int>::const_iterator it = sitesMap.find(host + ":" + std::to_string(port));
 		if(it == sitesMap.end())
 			return DomainSite::emptySite_;
 		else
-			return sites[it->second];
+			return sites.find(it->second)->second;
 	}
+	const DomainSite& getSite(int siteIndex) const {
+		auto it = sites.find(siteIndex);
+		if (it == sites.end()) {
+			return DomainSite::emptySite_;
+		}
+		return it->second;
+	}
+
 	inline bool isController(int siteIndex) const {
 		for(int index : controllerSiteIndexPool){
 			if(index == siteIndex)
@@ -5736,6 +5826,37 @@ private:
 	int extra_;
 };
 
+struct TableHeader {
+    using IndexMap = std::map<int, vector<std::pair<string, string>>>;
+
+	TableHeader() = default;
+	TableHeader(const string& owner, const string& physicalIndex, const vector<ColumnDesc>& tablesType,
+		const vector<int>& partitionKeys, const vector<FunctionDefSP>& partitionFunc):
+        owner(owner), physicalIndex(physicalIndex), colDescs(tablesType), partitionKeys(partitionKeys),
+        partitionFunction(partitionFunc) {}
+	TableHeader(const string& owner, const string& physicalIndex, const vector<ColumnDesc>& tablesType,
+			const vector<int>& partitionKeys, const vector<pair<int, bool>>& sortKeys,
+			DUPLICATE_POLICY rowDuplicatePolicy, const vector<pair<int, FunctionDefSP>>& sortKeyMappingFunction,
+			bool appendForDelete, const string& tableComment, const vector<FunctionDefSP>& partitionFunc,
+            const vector<int> &primaryKeys, const IndexMap &indexes) :
+			rowDuplicatePolicy(rowDuplicatePolicy), owner(owner), physicalIndex(physicalIndex), colDescs(tablesType),
+			partitionKeys(partitionKeys), sortKeys(sortKeys), sortKeyMappingFunction(sortKeyMappingFunction),
+			appendForDelete(appendForDelete), tableComment(tableComment), partitionFunction(partitionFunc),
+            primaryKeys(primaryKeys), indexes(indexes) {}
+	DUPLICATE_POLICY rowDuplicatePolicy = DUPLICATE_POLICY::KEEP_ALL;
+	string owner;
+	string physicalIndex;
+	vector<ColumnDesc> colDescs;
+	vector<int> partitionKeys;
+	vector<pair<int, bool>> sortKeys;
+	vector<pair<int, FunctionDefSP>> sortKeyMappingFunction;
+	bool appendForDelete = false;
+	string tableComment;
+	vector<FunctionDefSP> partitionFunction;
+    vector<int> primaryKeys;
+    IndexMap indexes;
+};
+
 class Domain{
 public:
 	Domain(const string& owner, PARTITION_TYPE partitionType, bool isLocalDomain, DBENGINE_TYPE engineType = DBENGINE_TYPE::OLAP, ATOMIC atomic = ATOMIC::TRANS, int flag = 0) : partitionType_(partitionType), isLocalDomain_(isLocalDomain), isExpired_(false),
@@ -5759,8 +5880,8 @@ public:
 	virtual ConstantSP getPartitionSites() const { return formatSites(partitions_);}
 	virtual ConstantSP getPartitionSchema() const = 0;
 	virtual void retrievePartitionsInRange(const ConstantSP& start, bool startInclusive, const ConstantSP& end, bool endInclusive, vector<DomainPartitionSP>& partitions, bool localOnly) const = 0;
-	virtual void retrievePartitionsIn(const ConstantSP& values, vector<DomainPartitionSP>& partitions, bool localOnly) const = 0;
-	virtual void retrievePartitionAt(const ConstantSP& value, vector<DomainPartitionSP>& partitions, bool localOnly) const = 0;
+	virtual void retrievePartitionsIn(const ConstantSP& values, vector<DomainPartitionSP>& partitions, bool localOnly, const FunctionDefSP& partitionFunction = nullptr) const = 0;
+	virtual void retrievePartitionAt(const ConstantSP& value, vector<DomainPartitionSP>& partitions, bool localOnly, const FunctionDefSP& partitionFunction = nullptr) const = 0;
 	virtual void retrieveAllPartitions(vector<DomainPartitionSP>& partitions, bool localOnly) const;
 	virtual IO_ERR saveDomain(const string& filename) const;
 	virtual IO_ERR saveDomain(const DataOutputStreamSP& out) const = 0;
@@ -5770,12 +5891,12 @@ public:
 	virtual int getPartitionDimensions() const { return 1;}
 	virtual DomainSP getDimensionalDomain(int dimension) const;
 	virtual DomainSP copy() const = 0;
-	bool addTable(const string& tableName, const string& owner, const string& physicalIndex, vector<ColumnDesc>& cols, vector<int>& partitionColumns);
-	bool addTable(const string& tableName, const string& owner, const string& physicalIndex, vector<ColumnDesc>& cols, vector<int>& partitionColumns,
-		vector<pair<int, bool>>& sortColumns, DUPLICATE_POLICY rowDuplicatePolicy, const vector<pair<int, FunctionDefSP>>& sortKeyMappingFunction, bool appendForDelete);
-	bool getTable(const string& tableName, string& owner, string& physicalIndex, vector<ColumnDesc>& cols, vector<int>& partitionColumns) const;
-	bool getTable(const string& tableName, string& owner, string& physicalIndex, vector<ColumnDesc>& cols, vector<int>& partitionColumns,
-		vector<pair<int, bool>>& sortColumns, DUPLICATE_POLICY& rowDuplicatePolicy, vector<pair<int, FunctionDefSP>>& sortKeyMappingFunction, bool& appendForDelete) const;
+	bool addTable(const string& tableName, const string& owner, const string& physicalIndex, vector<ColumnDesc>& cols,
+				  vector<int>& partitionColumns, const vector<FunctionDefSP>& partitionFunction);
+	bool addTable(const string& tableName, const TableHeader& tableHeader);
+	bool getTable(const string& tableName, string& owner, string& physicalIndex, vector<ColumnDesc>& cols,
+				  vector<int>& partitionColumns, vector<FunctionDefSP>& partitionFunction) const;
+	bool getTable(const string& tableName, TableHeader& tableHeader) const;
 	string getTabletPhysicalIndex(const string& tableName);
 	bool existsTable(const string& tableName);
 	bool removeTable(const string& tableName);
@@ -5829,22 +5950,6 @@ protected:
 	static ConstantSP temporalConvert(const ConstantSP& obj, DATA_TYPE targetType);
 
 protected:
-	struct TableHeader {
-		TableHeader() : rowDuplicatePolicy_(DUPLICATE_POLICY::KEEP_ALL){}
-		TableHeader(const string& owner, const string& physicalIndex, vector<ColumnDesc>& tablesType, vector<int>& partitionKeys): rowDuplicatePolicy_(DUPLICATE_POLICY::KEEP_ALL), owner_(owner),
-				physicalIndex_(physicalIndex), tablesType_(tablesType), partitionKeys_(partitionKeys){}
-		TableHeader(const string& owner, const string& physicalIndex, vector<ColumnDesc>& tablesType, vector<int>& partitionKeys, vector<pair<int, bool>>& sortKeys,
-				DUPLICATE_POLICY rowDuplicatePolicy,const vector<pair<int, FunctionDefSP>>& sortKeyMappingFunction, bool appendForDelete): rowDuplicatePolicy_(rowDuplicatePolicy), owner_(owner), physicalIndex_(physicalIndex),
-				tablesType_(tablesType), partitionKeys_(partitionKeys), sortKeys_(sortKeys), sortKeyMappingFunction_(sortKeyMappingFunction), appendForDelete_(appendForDelete) {}
-		DUPLICATE_POLICY rowDuplicatePolicy_;
-		string owner_;
-		string physicalIndex_;
-		vector<ColumnDesc> tablesType_;
-		vector<int> partitionKeys_;
-		vector<pair<int, bool>> sortKeys_;
-        vector<pair<int, FunctionDefSP>> sortKeyMappingFunction_;
-		bool appendForDelete_;
-	};
 	vector<DomainPartitionSP> partitions_;
 	PARTITION_TYPE partitionType_;
 	bool isLocalDomain_;

@@ -26,7 +26,7 @@ void checkTaskErrorMsg(const vector<DistributedCallSP>& calls);
 namespace OperatorImp{
 
 ConstantSP localReducer(Heap* heap,vector<ConstantSP>& arguments);
-
+ConstantSP now(const ConstantSP& a, const ConstantSP& b);
 }
 
 struct TaskDesc {
@@ -35,7 +35,7 @@ struct TaskDesc {
 			int totalTaskCount, int finishedTaskCount, int runningTaskCount, long long firstTaskStartTime, long long latestTaskStartTime) :
 		rootJobId(rootJobId), userId(userId), type(type), desc(desc), priority(priority), parallelism(parallelism), startTime(startTime),
 		sessionId(sessionId), remoteIP(remoteIP), remotePort(remotePort),
- 		totalTaskCount(totalTaskCount), finishedTaskCount(finishedTaskCount), runningTaskCount(runningTaskCount), 
+ 		totalTaskCount(totalTaskCount), finishedTaskCount(finishedTaskCount), runningTaskCount(runningTaskCount),
 		firstTaskStartTime(firstTaskStartTime),latestTaskStartTime(latestTaskStartTime)	{}
 	Guid rootJobId;
 	string userId;
@@ -47,11 +47,11 @@ struct TaskDesc {
 	long long sessionId;
 	string remoteIP;
 	int remotePort;
-	int totalTaskCount; 
-	int finishedTaskCount; 
-	int runningTaskCount; 
+	int totalTaskCount;
+	int finishedTaskCount;
+	int runningTaskCount;
 	long long firstTaskStartTime;
-	long long latestTaskStartTime;	
+	long long latestTaskStartTime;
 };
 
 template<class T>
@@ -511,8 +511,7 @@ public:
     }
 private:
     struct Info {
-        Info(const string& s, const vector<DistributedCallSP>& tasks, long long sessionId, const string& usrId) :
-            script(s), startTime(Util::getEpochTime()), tasks(tasks), sessionId(sessionId), usrId(usrId){}
+        Info(const string& s, const vector<DistributedCallSP>& tasks, long long sessionId, const string& usrId);
         string script;
         long long startTime;
         vector<DistributedCallSP> tasks;
@@ -529,8 +528,8 @@ private:
 class StageExecutor {
 public:
 	virtual ~StageExecutor(){}
-	virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks) = 0;
-	virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks, const JobProperty& jobProp) = 0;
+	virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks, bool forceParallel = false) = 0;
+	virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks, const JobProperty& jobProp, bool forceParallel = false) = 0;
 };
 
 class StaticStageExecutor : public StageExecutor{
@@ -538,8 +537,8 @@ public:
 	StaticStageExecutor(bool parallel, bool reExecuteOnOOM, bool trackJobs, bool resumeOnError = false, bool scheduleRemoteSite = true) :  parallel_(parallel),
 		reExecuteOnOOM_(reExecuteOnOOM), trackJobs_(trackJobs),	resumeOnError_(resumeOnError), scheduleRemoteSite_(scheduleRemoteSite){}
 	virtual ~StaticStageExecutor(){}
-	virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks);
-	virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks, const JobProperty& jobProp);
+	vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks, const JobProperty& jobProp, bool forceParallel = false);
+	vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks, bool forceParallel = false);
 	void execute(Heap* heap, const vector<DistributedCallSP>& tasks, const std::function<void(const vector<DistributedCallSP>&, int)>& callback);
     void setForbidProbingGroupSize(bool flag){forbidProbingGroupSize_ = flag;}
     void setWaitRunningTaskFinishedOnError(bool flag){waitRunningTaskFinishedOnError_ = flag;}
@@ -572,8 +571,8 @@ public:
 	PipelineStageExecutor(vector<FunctionDefSP>& followingFunctors, bool trackJobs, int queueDepth = 2, int parallel = 1) : followingFunctors_(followingFunctors), trackJobs_(trackJobs),
 		queueDepth_(queueDepth), parallel_(parallel){}
 	virtual ~PipelineStageExecutor(){}
-	virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks);
-	virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks, const JobProperty& jobProp);
+	virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks, bool forceParallel = false);
+	virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks, const JobProperty& jobProp, bool forceParallel = false);
 
 private:
 	void parallelExecute(Heap* heap, vector<DistributedCallSP>& tasks);
@@ -585,5 +584,19 @@ private:
 	int parallel_;
 };
 
+class ImprovedPipelineStageExecutor : public StageExecutor {
+public:
+    ImprovedPipelineStageExecutor(vector<FunctionDefSP>& followingFunctors, bool trackJobs, int queueDepth = 2, int parallel = 1) : followingFunctors_(followingFunctors), trackJobs_(trackJobs),
+                                                                                                                                    queueDepth_(queueDepth), parallel_(parallel){}
+    virtual ~ImprovedPipelineStageExecutor(){}
+    virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks, bool forceParallel = false);
+    virtual vector<DistributedCallSP> execute(Heap* heap, const vector<DistributedCallSP>& tasks, const JobProperty& jobProp, bool forceParallel = false);
+
+private:
+    vector<FunctionDefSP> followingFunctors_;
+    bool trackJobs_;
+    int queueDepth_;
+    int parallel_;
+};
 
 #endif /* COMPUTINGMODEL_H_ */

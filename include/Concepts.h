@@ -213,6 +213,8 @@ public:
 	FunctionDefSP getConstructor() { return constructor_; }
 	DolphinClassSP getBaseClass() { return baseCls_; }
 	void setBaseClass(DolphinClassSP &baseCls) { baseCls_ = baseCls; }
+	void setJit(bool isJit) { isJit_ = isJit; }
+	bool isJit() { return isJit_; }
 
 protected:
 	DolphinClass(const string& qualifier, const string& name, int flag, const vector<pair<string, char> >& attributes, const vector<FunctionDefSP>& methods);
@@ -225,6 +227,7 @@ private:
 	bool bodyDefined_ = false;
 	FunctionDefSP constructor_;
 	DolphinClassSP baseCls_;
+	bool isJit_ = false;
 };
 
 class DolphinInstance : public OOInstance{
@@ -515,15 +518,20 @@ enum class BoundType {
 };
 
 struct FrameBound {
-	BoundType type;
-	bool unbounded;
-	int num;
-
-	bool duration;
-	DURATION unit;
-
 	IO_ERR serialize(const ByteArrayCodeBufferSP& buffer) const;
 	string deserialize(const DataInputStreamSP& reader, char version);
+	inline bool isCurrentRow() const { return type == BoundType::kCurrentRow; }
+	inline bool isUnbounded() const { return unbounded; }
+	inline bool isLimited() const { return type != BoundType::kCurrentRow && !unbounded; }
+	inline bool isPreceding() const { return type == BoundType::kPreceding; }
+	inline bool isFollowing() const { return type == BoundType::kFollowing; }
+	inline bool isDuration() const { return duration; }
+
+	BoundType type;
+	bool unbounded;
+	bool duration;
+	int num;
+	DURATION unit;
 };
 
 struct WindowFrame {
@@ -535,18 +543,7 @@ struct WindowFrame {
 	string deserialize(const DataInputStreamSP& reader, char version);
 };
 
-// window frame helper function.
-inline bool isCurrentRow(const FrameBound& f) { return f.type == BoundType::kCurrentRow; }
 
-inline bool isUnbounded(const FrameBound& f) { return f.unbounded; }
-
-inline bool isLimited(const FrameBound& f) { return f.type != BoundType::kCurrentRow && !f.unbounded; }
-
-inline bool isPreceding(const FrameBound& f) { return f.type == BoundType::kPreceding; }
-
-inline bool isFollowing(const FrameBound& f) { return f.type == BoundType::kFollowing; }
-
-inline bool isDuration(const FrameBound& f) { return f.duration; }
 
 class AnalyticFunction final : public Object {
    public:
@@ -578,7 +575,7 @@ class AnalyticFunction final : public Object {
 	FrameBound getWindowStart() const { return frame_.start; }
 	FrameBound getWindowEnd() const { return frame_.end; }
 	FrameType windowFrameType() const { return frame_.type; }
-	bool isDuration() const { return ::isDuration(frame_.start) || ::isDuration(frame_.end); }
+	bool isDuration() const { return frame_.start.isDuration() || frame_.end.isDuration(); }
 
 	// trivial private member interface.
 	SQLContextSP& context() { return context_; }
@@ -687,11 +684,11 @@ private:
 
 class SQLQuery: public Object{
 public:
-	SQLQuery(const SQLContextSP& contextSP,int start, int end, char exec, vector<ColumnDefSP>& select, ObjectSP& from, vector<ObjectSP>& where,
-			vector<SortAttributeSP>& sorting, vector<SortAttributeSP>& sortBy, vector<ColumnDefSP>& groupBy, ObjectSP& having, char groupFlag,
+	SQLQuery(const SQLContextSP& contextSP,int start, int end, char exec, const vector<ColumnDefSP>& select, const ObjectSP& from, const vector<ObjectSP>& where,
+			const vector<SortAttributeSP>& sorting, const vector<SortAttributeSP>& sortBy, const vector<ColumnDefSP>& groupBy, const ObjectSP& having, char groupFlag,
 			char cgroups, int hint);
-	SQLQuery(const SQLContextSP& contextSP, ObjectSP& rowOffset, ObjectSP& rowCount, char exec, vector<ColumnDefSP>& select, ObjectSP& from, vector<ObjectSP>& where,
-			vector<SortAttributeSP>& sorting, vector<SortAttributeSP>& sortBy, vector<ColumnDefSP>& groupBy, ObjectSP& having, char groupFlag,
+	SQLQuery(const SQLContextSP& contextSP, const ObjectSP& rowOffset, const ObjectSP& rowCount, char exec, const vector<ColumnDefSP>& select, const ObjectSP& from, const vector<ObjectSP>& where,
+			const vector<SortAttributeSP>& sorting, const vector<SortAttributeSP>& sortBy, const vector<ColumnDefSP>& groupBy, const ObjectSP& having, char groupFlag,
 			char cgroups, int hint);
 	SQLQuery(Session* session, const DataInputStreamSP& in) : start_(0), end_(-1), exec_(0), groupFlag_(-1), cgroups_(0), hint_(0) {}
 	virtual ~SQLQuery(){}
@@ -810,6 +807,7 @@ public:
 	virtual void collectPartitionedTables(Heap* pHeap, bool isDistributed, bool& reshuffle, vector<TableSP>& tables, vector<bool>& isPartitionedTable) const = 0;
 	virtual void getFinalSelectList(TableSP table, vector<ObjectSP>& selects, vector<string>& colNames) const  = 0;
 	static ObjectSP copyWithNewSQLContext(const SQLContextSP& context, const ObjectSP& originalObj);
+	static ObjectSP copyWithNewSQLContext(Heap* heap, const SQLContextSP& context, const ObjectSP& originalObj);
 	static ObjectSP materializeWithNewSQLContext(Heap* heap, const SQLContextSP& context, const ObjectSP& originalObj);
 	static bool generateColumnDefListFromMetaCode(const SQLContextSP& context, const ConstantSP& columnDefs, vector<ColumnDefSP>& output);
 	static bool generateObjectListFromMetaCode(const SQLContextSP& context, const ConstantSP& columnDefs, vector<ObjectSP>& output);
@@ -930,7 +928,9 @@ protected:
 
 class SQLDelete : public Object {
 public:
-	SQLDelete(const SQLContextSP& contextSP, const ObjectSP& tableSP,  vector<ObjectSP>& where) : context_(contextSP), table_(tableSP), where_(where), transactionId_(-1), hint_(0){}
+	SQLDelete(const SQLContextSP& contextSP, const ObjectSP& tableSP, const vector<ObjectSP>& where = {},
+			  const ObjectSP& from = {})
+		: context_(contextSP), table_(tableSP), from_(from), where_(where), transactionId_(-1), hint_(0) {}
 	SQLDelete(Session* session, const DataInputStreamSP& in);
 	virtual ~SQLDelete(){}
 	void setSegment(const DomainPartitionSP& segment) { segment_ = segment;}
@@ -959,6 +959,7 @@ public:
 protected:
 	SQLContextSP context_;
 	ObjectSP table_;
+	ObjectSP from_;
 	vector<ObjectSP> where_;
 	DomainPartitionSP segment_;
 	long long transactionId_;
@@ -969,6 +970,8 @@ protected:
 	 * 	     dispatch this SQLUpdate to related nodes.
 	 */
 	int hint_;
+
+	uint64_t version_ = 1;
 };
 
 class Variable:public Object{
@@ -1382,6 +1385,37 @@ private:
 	int subIndex_;
 };
 
+class TernaryOperator : public Object {
+public:
+	TernaryOperator(const ObjectSP& condition, const ObjectSP& trueClause, const ObjectSP& falseClause);
+	TernaryOperator(const SQLContextSP& context, Session* session, const DataInputStreamSP& in);
+
+    virtual ~TernaryOperator() {}
+    virtual OBJECT_TYPE getObjectType() const {return TERNARY;}
+    virtual ConstantSP getComponent() const;
+    virtual ConstantSP getValue(Heap *heap) { return getReference(heap);}
+    virtual ConstantSP getReference(Heap *heap);
+    virtual std::string getScript() const;
+    virtual IO_ERR serialize(Heap*, const ByteArrayCodeBufferSP&) const;
+    virtual void collectUserDefinedFunctions(unordered_map<string,FunctionDef*>& functionDefs) const;
+    virtual void collectUserDefinedFunctionsAndClasses(Heap* pHeap, unordered_map<string,FunctionDef*>& functionDefs, unordered_map<string,OOClass*>& classes) const;
+    virtual ObjectSP copy(Heap* pHeap, const SQLContextSP& context, bool localize) const;
+    virtual ObjectSP copyAndMaterialize(Heap* pHeap, const SQLContextSP& context, const TableSP& table) const;
+    virtual bool mayContainColumnRefOrVariable() const;
+    virtual void retrieveColumns(const TableSP& table, vector<pair<string,string>>& columns) const;
+    virtual int checkSpecicalFunction(bool aggrOnly) const;
+    virtual bool containAnalyticFunction() const;
+
+    inline const ObjectSP& getCondition() const { return cond_;}
+    inline const ObjectSP& getTrueClause() const { return trueClause_;}
+    inline const ObjectSP& getFalseClause() const { return falseClause_;}
+
+private:
+    ObjectSP cond_;
+    ObjectSP trueClause_;
+    ObjectSP falseClause_;
+};
+
 struct ConfigEngineEntries {
     std::vector<ConstantSP> configValues;
     std::unordered_map<std::string, int> configMap;
@@ -1561,6 +1595,8 @@ public:
 	virtual int getSiteCapacity() const = 0;
 	virtual int getSiteCount() const = 0;
 	virtual bool setMaxConnections(int newConnectionLimit) = 0;
+	virtual void notifyNodeChange() = 0;
+	virtual int getMaxConnectionPerSite() = 0;
 };
 
 class UDFFactory {
@@ -1698,7 +1734,8 @@ public:
 	virtual SQLUpdateSP createSQLUpdate(const SQLContextSP& contextSP, const ObjectSP& tableSP,  vector<ColumnDefSP>& updates,	const ObjectSP& from,
 			vector<ObjectSP>& where, vector<ColumnDefSP>& contextBy, const vector<SortAttributeSP>& csort, const ObjectSP& having) = 0;
 	virtual SQLUpdateSP createSQLUpdate(Session* session, const DataInputStreamSP& in) = 0;
-	virtual SQLDeleteSP createSQLDelete(const SQLContextSP& contextSP, const ObjectSP& tableSP,  vector<ObjectSP>& where) = 0;
+	virtual SQLDeleteSP createSQLDelete(const SQLContextSP& contextSP, const ObjectSP& tableSP,
+										const vector<ObjectSP>& where = {}, const ObjectSP& from = {}) = 0;
 	virtual SQLDeleteSP createSQLDelete(Session* session, const DataInputStreamSP& in) = 0;
 	virtual vector<DomainPartitionSP> getPartitions(Heap* heap, Table* table, vector<ObjectSP>& where) = 0;
 	virtual void initializeFilters(Heap* heap, const SQLContextSP& context, const TableSP& table, const vector<ObjectSP>& filters, vector<ObjectSP>& finalFilters) = 0;
@@ -1887,10 +1924,11 @@ public:
 	 * 
 	 * limit: the number of rows to read, positive means from the start, negative means from the end, zero means all
 	 * byKey: whether the limit is by key
+	 * partitionFunctions : name of the partition column and its corresponding partition function
 	 */
 	virtual TableSP load(Heap* heap, const string& dbUrl, const string& tableName, const DFSChunkMetaSP& chunk, vector<ObjectSP>& filters,
 			const vector<string>& colNames, const vector<pair<string, ConstantSP>>& valuePartitionCols,
-			INDEX limit=0, bool byKey=false) const = 0;
+			INDEX limit=0, bool byKey=false, const vector<pair<string, FunctionDefSP>>& partitionFunctions = {}) const = 0;
 
 	inline bool cacheTablet() const { return cacheTablet_;}
 	inline bool supportSortKey() const  {return sortKey_;}
@@ -1974,6 +2012,8 @@ public:
 			OLTP_ENGINE = engine;
 		else if(type == DBENGINE_TYPE::IMOLTP)
 			IMOLTP_ENGINE = engine;
+        else if(type == DBENGINE_TYPE::PKEY)
+            PK_ENGINE = engine;
 	}
 
 	static string getEngineName(DBENGINE_TYPE type) {
@@ -1986,6 +2026,8 @@ public:
 			return "OLTP";
 		case DBENGINE_TYPE::IMOLTP:
 			return "IMOLTP";
+        case DBENGINE_TYPE::PKEY :
+            return "PKEY";
 		default:
 			return "";
 		}
@@ -2000,6 +2042,7 @@ public:
 	static StorageEngineSP OLAP_ENGINE;
 	static StorageEngineSP OLTP_ENGINE;
 	static StorageEngineSP IMOLTP_ENGINE;
+    static StorageEngineSP PK_ENGINE;
 
 protected:
 	static StorageEngineSP engines[(int)DBENGINE_TYPE::MAX_DBENGINE_TYPES];
@@ -2075,6 +2118,7 @@ enum class AsyncReplicationTaskOp {
 	RENAME_COLUMN,
 	CREATE_DOMAIN,
 	APPEND_CHUNK_GRANULARITY,
+	SET_TABLE_COMMENT, 
 };
 
 enum class ReplicationLevel {
@@ -2114,7 +2158,10 @@ public:
 		DomainSP domain = DomainSP{}, long long tid = -1, const string& tableName = "", size_t dataRows = 0) = 0;
 	virtual ReplicationTaskDataSP replicateAppend(DictionarySP taskInfo, const ConstantSP& object) = 0;
 	virtual ReplicationTaskDataSP replicateDropDatabase(DictionarySP taskInfo) = 0;
-	virtual ReplicationTaskDataSP replicateUpsert(DictionarySP taskInfo, const ConstantSP& keyColNames, const ConstantSP& table, bool ignoreNull, const ConstantSP& sortColumns) = 0;
+	virtual ReplicationTaskDataSP replicateUpsert(DictionarySP taskInfo,
+		const DomainSP& domain,
+		const ConstantSP& keyColNames, const ConstantSP& table,
+		bool ignoreNull, const ConstantSP& sortColumns) = 0;
 	virtual ReplicationTaskDataSP replicateDropPartition(DictionarySP taskInfo, const string& dbUrl, const ConstantSP& partitionPaths, bool forceDelete, bool deleteSchema) = 0;
 	virtual ReplicationTaskDataSP replicateDropTable(DictionarySP taskInfo, const string& dbUrl) = 0;
 	virtual ReplicationTaskDataSP replicateAddRangePartitions(DictionarySP taskInfo, const vector<ConstantSP>& arguments) = 0;
@@ -2122,7 +2169,8 @@ public:
 	virtual ReplicationTaskDataSP replicateSQLDelete(DictionarySP taskInfo, SQLDelete* sqlDelete, Heap* heap) = 0;
 	virtual ReplicationTaskDataSP replicateSQLUpdate(DictionarySP taskInfo, SQLUpdate* sqlUpdate, Heap* heap) = 0;
 	virtual ReplicationTaskDataSP replicateCreateTable(DictionarySP taskInfo, const vector<ConstantSP>& args) = 0;
-	virtual ReplicationTaskDataSP replicateCreatePartitionedTable(DictionarySP taskInfo, const vector<ConstantSP>& args, Heap* heap) = 0;
+	virtual ReplicationTaskDataSP replicateCreatePartitionedTable(DictionarySP taskInfo, const vector<ConstantSP>& args,
+		const vector<FunctionDefSP>& partitionFunc, Heap* heap) = 0;
 	virtual ReplicationTaskDataSP replicateCreateDB(DictionarySP taskInfo, const vector<ConstantSP>& args) = 0;
 	virtual ReplicationTaskDataSP replicateAddColumn(DictionarySP taskInfo, const vector<ConstantSP>& args) = 0;
 	virtual ReplicationTaskDataSP replicateDropColumn(DictionarySP taskInfo, ConstantSP colNames) = 0;
@@ -2133,6 +2181,7 @@ public:
 	virtual ReplicationTaskDataSP replicateRenameColumn(DictionarySP taskInfo, ConstantSP oldColName, ConstantSP newColName) = 0;
 	virtual ReplicationTaskDataSP replicateCreateDomain(DictionarySP taskInfo, DomainSP domain) = 0;
 	virtual ReplicationTaskDataSP replicateAppendChunk(DictionarySP taskInfo, VectorSP datas) = 0;
+	virtual ReplicationTaskDataSP replicateSetTableComment(DictionarySP taskInfo, const string& comment) = 0;
 	// If txn commited, call Operation::done(). If txn rollback, txn->commit() will throw exception and
 	// Operation::~Operation will clean TaskData of txn.
 	virtual OperationSP submitTask(DictionarySP taskInfo, ReplicationTaskDataSP taskData) = 0;
@@ -2240,6 +2289,36 @@ protected:
 	std::unordered_map<string, Catalog> cMap_;
 	std::unordered_map<string, std::pair<string, string>> dbUrl2SchemaCache_;
 	Mutex m_;
+};
+
+class ColumnFilter {
+public:
+    static ColumnFilter parse(const string &input);
+    static ColumnFilter parse(const string &input, const string &columnName);
+    static string getColumnFilterTypeString(ColumnFilterType type);
+    static ColumnFilterType getColumnFilterType(const string &type);
+
+public:
+    string getString() const;
+    inline ColumnFilterType getType() const { return type_; }
+    inline void setName(const string &name) { name_ = name; }
+    inline const string &getName() const { return name_; }
+
+    template<typename T>
+    inline bool getProperty(const string &key, T &value) const {
+        auto it = properties_.find(key);
+        if (it == properties_.end()) {
+            return false;
+        }
+        std::stringstream ss(it->second);
+        ss >> value;
+        return true;
+    }
+
+private:
+    ColumnFilterType type_{ColumnFilterType::UnknownIndex};
+    string name_;
+    std::unordered_map<string, string> properties_;
 };
 
 #endif /* CONCEPTS_H_ */
