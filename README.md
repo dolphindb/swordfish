@@ -1,5 +1,7 @@
 # Swordfish 参考手册
 
+自 3.00.2 版本起，该 Readme 不再进行维护。用户可移步至：[《Swordfish 概述》](https://docs.dolphindb.cn/zh/swordfish/cpp_swordfish.html)。
+
 **版权声明**
 
 *© DolphinDB, Inc。2023。浙江智臾科技有限公司保留所有权利。**未经版权所有者**事先**书面许可**，**本文**档中受版权保护的**任何部分不得以任何形式**或通过**任何**手段（图片、电子或机械方式，包括影印、录像或存储在电子检索系统中）**进行复制**。*
@@ -40,44 +42,45 @@ Swordfish 仅面向付费的商业用户，不提供社区版。商业用户如�
 
 **目录**
 
-- [系统概述](#系统概述)
-  - [背景](#背景)
-  - [架构](#架构)
-  - [特性](#特性)
-  - [Swordfish 与 DolphinDB](#swordfish-与-dolphindb)
-  - [流计算引擎](#流计算引擎)
-  - [License 有效性检查](#license-有效性检查)
-- [使用方法](#使用方法)
-  - [运行时环境的启停](#运行时环境的启停)
-  - [打开/创建数据库](#打开创建数据库)
-  - [连接数据库](#连接数据库)
-  - [DDL 操作](#ddl-操作)
-  - [DML 操作](#dml-操作)
-  - [事务处理](#事务处理)
-  - [脚本执行](#脚本执行)
-- [功能与函数](#功能与函数)
-  - [数据库文件](#数据库文件)
-  - [索引](#索引)
-  - [事务](#事务)
-  - [异常](#异常)
-  - [Low-level DML 接口](#low-level-dml-接口)
-- [脚本样例](#脚本样例)
-  - [通过运行 DolphinDB 脚本创建流数据引擎](#通过运行-dolphindb-脚本创建流数据引擎)
-  - [流引擎直接输出到内存 OLTP 表](#流引擎直接输出到内存-oltp-表)
-  - [内存 OLTP 表订阅接收引擎输出的流表](#内存-oltp-表订阅接收引擎输出的流表)
-  - [调用自定义函数和内置函数](#调用自定义函数和内置函数)
-  - [智能指针（Smart Pointer）](#智能指针smart-pointer)
-  - [数据写入、插入、查询、更新与删除](#数据写入插入查询更新与删除)
-- [操作与维护](#操作与维护)
-  - [错误管理](#错误管理)
-  - [配置管理](#配置管理)
-  - [性能测试](#性能测试)
-    - [主键索引查询测试](#主键索引查询测试)
-    - [向空表插入数据测试](#向空表插入数据测试)
-    - [流数据实时计算测试](#流数据实时计算测试)
-  - [数据类型支持](#数据类型支持)
-- [接口说明](#接口说明)
-- [参考](#参考)
+- [Swordfish 参考手册](#swordfish-参考手册)
+  - [系统概述](#系统概述)
+    - [背景](#背景)
+    - [架构](#架构)
+    - [特性](#特性)
+    - [Swordfish 与 DolphinDB](#swordfish-与-dolphindb)
+    - [流计算引擎](#流计算引擎)
+    - [License 有效性检查](#license-有效性检查)
+  - [使用方法](#使用方法)
+    - [运行时环境的启停](#运行时环境的启停)
+    - [打开/创建数据库](#打开创建数据库)
+    - [连接数据库](#连接数据库)
+    - [DDL 操作](#ddl-操作)
+    - [DML 操作](#dml-操作)
+    - [事务处理](#事务处理)
+    - [脚本执行](#脚本执行)
+  - [功能与函数](#功能与函数)
+    - [数据库文件](#数据库文件)
+    - [索引](#索引)
+    - [事务](#事务)
+    - [异常](#异常)
+    - [Low-level DML 接口](#low-level-dml-接口)
+  - [脚本样例](#脚本样例)
+    - [通过运行 DolphinDB 脚本创建流数据引擎](#通过运行-dolphindb-脚本创建流数据引擎)
+    - [流引擎直接输出到内存 OLTP 表](#流引擎直接输出到内存-oltp-表)
+    - [内存 OLTP 表订阅接收引擎输出的流表](#内存-oltp-表订阅接收引擎输出的流表)
+    - [调用自定义函数和内置函数](#调用自定义函数和内置函数)
+    - [智能指针（Smart Pointer）](#智能指针smart-pointer)
+    - [数据写入、插入、查询、更新与删除](#数据写入插入查询更新与删除)
+  - [操作与维护](#操作与维护)
+    - [错误管理](#错误管理)
+    - [配置管理](#配置管理)
+    - [性能测试](#性能测试)
+      - [主键索引查询测试](#主键索引查询测试)
+      - [向空表插入数据测试](#向空表插入数据测试)
+      - [流数据实时计算测试](#流数据实时计算测试)
+    - [数据类型支持](#数据类型支持)
+  - [接口说明](#接口说明)
+  - [参考](#参考)
 
 ## 系统概述
 
@@ -105,9 +108,11 @@ Swordfish 支持事务, 默认为 snapshot 隔离级别。它同时提供 Write-
 
 实际应用中，流数据引擎的计算结果可以输出到共享内存表、流数据表、消息中间件、数据库、API 等终端，以做进一步处理。计算复杂表达式时，亦可将多个流数据引擎通过级联的方式合并成一个复杂的数据流拓扑。
 
-Swordfish 完全支持 DolphinDB 提供的应对不同计算场景的多种引擎，详情参考：[流计算引擎](https://www.dolphindb.cn/cn/help/FunctionsandCommands/SeriesOfFunctions/streamingEngine.html?highlight=%E6%B5%81%E6%95%B0%E6%8D%AE%E5%BC%95%E6%93%8E#id2)。
+Swordfish 完全支持 DolphinDB 提供的应对不同计算场景的多种引擎，详情参考：[内置流式计算引擎](https://docs.dolphindb.cn/zh/funcs/themes/streamingEngine.html)。
 
 ### License 有效性检查
+
+社区版 License 暂不支持该功能。如需使用，请前往[官网下载页面](https://dolphindb.cn/product#downloads-top)，点击 Swordfish 产品的“试用 License”，申请对应 License。
 
 初始化运行时环境时， 如果 License 中授权的 CPU 核数小于机器实际的 CPU 核数，则 `DolphinDBLib::initializeRuntime` 将会失败，类似以下的信息会记录在log 日志中：
 
@@ -996,6 +1001,7 @@ int main(int argc, char* argv[])
     DBOption option;
     std::shared_ptr<DB> db = std::make_shared<DB>("test_db2", option);
     Connection conn(*db);
+    Connection conn_(*db);
     const string tableName = "test_table";
 
     // 创建表
@@ -1125,37 +1131,49 @@ int main(int argc, char* argv[])
     // 交易过程，过程中只有其中一个交易结果数据会提交
     {
         auto transaction1 = [&conn, &tableName]() {
-            if (conn.isInActiveTransactionContext()) {
-                return;
-            }
-            conn.beginTransaction();
-            string filterTxt = "col_long <= 500, col_bool = true";
-            string updateDefsTxt = "col_long = col_long+1";
-            vector<ObjectSP> filter = conn.makeFilters(filterTxt);
-            vector<ColumnDefSP> columnUpdateDefs = conn.makeColumnUpdateDefs(updateDefsTxt);
+            try {
+                if (conn.isInActiveTransactionContext()) {
+                    return;
+                }
+                conn.beginTransaction();
+                string filterTxt = "col_long <= 500, col_bool = true";
+                string updateDefsTxt = "col_long = col_long+1";
+                vector<ObjectSP> filter = conn.makeFilters(filterTxt);
+                vector<ColumnDefSP> columnUpdateDefs = conn.makeColumnUpdateDefs(updateDefsTxt);
 
-            size_t changeRows;
-            do {
-                changeRows = conn.update(tableName, columnUpdateDefs, filter);
-            } while (changeRows > 0);
-            conn.commit();
+                size_t changeRows;
+                do {
+                    changeRows = conn.update(tableName, columnUpdateDefs, filter);
+                } while (changeRows > 0);
+                conn.commit();
+                std::cout << "transaction 1 committed!\n";
+            } catch (std::exception& err) {
+                std::cout << "transaction 1 got an exception: " << err.what() << "\n";
+                conn.rollback();
+            }
         };
 
-        auto transaction2 = [&conn, &tableName]() {
-            if (conn.isInActiveTransactionContext()) {
-                return;
-            }
-            conn.beginTransaction();
-            string filterTxt = "col_int < 500, col_bool = true";
-            string updateDefsTxt = "col_int = col_int+10";
-            vector<ObjectSP> filter = conn.makeFilters(filterTxt);
-            vector<ColumnDefSP> columnUpdateDefs = conn.makeColumnUpdateDefs(updateDefsTxt);
+        auto transaction2 = [&conn_, &tableName]() {
+            try {
+                if (conn_.isInActiveTransactionContext()) {
+                    return;
+                }
+                conn_.beginTransaction();
+                string filterTxt = "col_int < 500, col_bool = true";
+                string updateDefsTxt = "col_int = col_int+10";
+                vector<ObjectSP> filter = conn_.makeFilters(filterTxt);
+                vector<ColumnDefSP> columnUpdateDefs = conn_.makeColumnUpdateDefs(updateDefsTxt);
 
-            size_t changeRows;
-            do {
-                changeRows = conn.update(tableName, columnUpdateDefs, filter);
-            } while (changeRows > 0);
-            conn.commit();
+                size_t changeRows;
+                do {
+                    changeRows = conn_.update(tableName, columnUpdateDefs, filter);
+                } while (changeRows > 0);
+                conn_.commit();
+                std::cout << "transaction 2 committed!\n";
+            } catch (std::exception& err) {
+                std::cout << "transaction 2 got an exception: " << err.what() << "\n";
+                conn_.rollback();
+            }
         };
 
         std::thread t1(transaction1);
