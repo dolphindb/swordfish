@@ -41,7 +41,7 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build/bin/)
 
 configure_file("${PROJECT_SOURCE_DIR}/asset/dolphindb.lic" "${EXECUTABLE_OUTPUT_PATH}/dolphindb.lic" COPYONLY)
 configure_file("${PROJECT_SOURCE_DIR}/asset/dolphindb.dos" "${EXECUTABLE_OUTPUT_PATH}/dolphindb.dos" COPYONLY)
-
+file(COPY "${PROJECT_SOURCE_DIR}/asset/dict" DESTINATION "${EXECUTABLE_OUTPUT_PATH}/dict")
 
 #######################################################################################################################
 # Add sub directory
